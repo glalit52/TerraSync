@@ -1,0 +1,3909 @@
+<title>TerraShield Console</title>
+<!--
+  No webfont, and no other outbound request of any kind. This console is meant
+  to open from a filesystem inside a facility that may have no route to the
+  internet at all, so a stylesheet fetched from a third party is broken exactly
+  where the product is supposed to work. It is also a disclosure: every analyst
+  opening the page would announce to a font CDN that they had done so, from
+  which network, and when. The font stacks below resolve locally on every
+  platform this will be opened on.
+-->
+<style>
+  :root{
+    color-scheme:dark;
+    --ground:#070D14; --surface:#0D1520; --surface-2:#131E2B; --sunken:#0A111A;
+    --ink:#E8EFF5; --ink-2:#B4C4D2; --muted:#7B8B9C;
+    --line:#1E2C3C; --line-soft:#17222E;
+    --accent:#A3D948; --accent-soft:#a3d94816; --accent-line:#a3d94840;
+    --critical:#FF6B4A; --critical-soft:#ff6b4a18;
+    --high:#FFA033; --high-soft:#ffa03318;
+    --medium:#4FB3F5; --medium-soft:#4fb3f518;
+    --low:#7B8B9C; --low-soft:#7b8b9c18;
+    --sar:#C77DFF; --optical:#4FB3F5; --cloud:#3A4757;
+    --f-body:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,
+              "Helvetica Neue",Arial,sans-serif;
+    --f-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,
+              "DejaVu Sans Mono",monospace;
+  }
+  *{box-sizing:border-box}
+  body{background:var(--ground);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.55;margin:0}
+  .wrap{max-width:1200px;margin:0 auto;padding-inline:18px;padding-block:0 72px}
+  h1,h2,h3{text-wrap:balance;margin:0}
+  a{color:var(--accent);text-decoration-thickness:1px;text-underline-offset:2px}
+  .mono{font-family:var(--f-mono)}
+  .muted{color:var(--muted)}
+
+  /* masthead */
+  .mast{border-bottom:1px solid var(--line);background:
+      radial-gradient(1200px 320px at 78% -40%, #14304a 0%, transparent 70%),
+      linear-gradient(180deg,#091220 0%, var(--ground) 100%)}
+  .mast .wrap{padding-block:30px 26px}
+  .brand{display:flex;align-items:baseline;gap:11px;flex-wrap:wrap}
+  .brand h1{font-size:clamp(30px,5vw,44px);font-weight:700;letter-spacing:-.02em}
+  .brand h1 em{font-style:normal;color:var(--accent)}
+  .brand .tag{color:var(--ink-2);font-size:14px;letter-spacing:.08em;text-transform:uppercase}
+  .lede{margin-top:9px;max-width:60ch;color:var(--ink-2)}
+  .stamp{margin-top:14px;font-family:var(--f-mono);font-size:12px;color:var(--muted);
+    display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .stamp b{color:var(--ink-2);font-weight:500}
+  .dot{width:5px;height:5px;border-radius:50%;background:var(--line);flex:none}
+
+  /* metric row */
+  .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;
+    background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-top:26px}
+  .metric{background:var(--surface);padding:15px 16px 14px}
+  .metric .k{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--muted)}
+  .metric .v{font-size:30px;font-weight:600;letter-spacing:-.02em;margin-top:3px;
+    font-variant-numeric:tabular-nums;line-height:1.1}
+  .metric .s{font-size:12px;color:var(--muted);margin-top:2px}
+  .metric.alarm .v{color:var(--critical)}
+  .metric.warn .v{color:var(--high)}
+  .metric.good .v{color:var(--accent)}
+
+  section{margin-top:44px}
+  .sec-head{display:flex;align-items:baseline;justify-content:space-between;gap:14px;
+    flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:9px;margin-bottom:18px}
+  .sec-head h2{font-size:19px;font-weight:600;letter-spacing:-.01em}
+  .sec-head .note{font-size:13px;color:var(--muted);max-width:56ch}
+
+  .panel{background:var(--surface);border:1px solid var(--line);border-radius:10px}
+  .panel-pad{padding:16px 18px}
+
+  /* estate map */
+  .mapgrid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);
+    gap:16px;align-items:start}
+  @media(max-width:860px){.mapgrid{grid-template-columns:1fr}}
+  .estate{width:100%;height:auto;display:block;border-radius:10px;background:var(--sunken)}
+  .estate .grat{stroke:var(--line);stroke-width:.6;fill:none}
+  .estate .lbl{fill:var(--muted);font-family:var(--f-mono);font-size:7px}
+  .estate .site-name{fill:var(--ink-2);font-family:var(--f-body);font-size:8.5px;font-weight:500}
+  .estate .halo{fill:none;stroke-width:1.2;opacity:.55}
+
+  .sitelist{display:flex;flex-direction:column;gap:1px;background:var(--line);
+    border:1px solid var(--line);border-radius:10px;overflow:hidden;
+    align-self:start}
+  .siterow{background:var(--surface);padding:11px 14px;display:grid;
+    grid-template-columns:9px 1fr auto;gap:11px;align-items:center;cursor:pointer;
+    border:0;text-align:left;color:inherit;font:inherit;width:100%}
+  .siterow:hover{background:var(--surface-2)}
+  .siterow[aria-current="true"]{background:var(--surface-2);box-shadow:inset 2px 0 0 var(--accent)}
+  .pip{width:9px;height:9px;border-radius:50%}
+  .siterow .nm{font-weight:500;font-size:14px}
+  .siterow .sub{font-size:12px;color:var(--muted);font-family:var(--f-mono)}
+  .siterow .rt{text-align:right;font-family:var(--f-mono);font-size:11.5px;color:var(--muted)}
+
+  .st-anomalous{background:var(--critical)} .st-watch{background:var(--high)}
+  .st-normal{background:var(--accent)} .st-stale{background:var(--muted)}
+
+  /* chips + tables */
+  .chip{display:inline-flex;align-items:center;gap:5px;font-family:var(--f-mono);
+    font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;
+    border-radius:4px;border:1px solid var(--line);color:var(--ink-2);white-space:nowrap}
+  .chip.critical{color:var(--critical);border-color:#ff6b4a44;background:var(--critical-soft)}
+  .chip.high{color:var(--high);border-color:#ffa03344;background:var(--high-soft)}
+  .chip.medium{color:var(--medium);border-color:#4fb3f544;background:var(--medium-soft)}
+  .chip.low{color:var(--low);border-color:var(--line);background:var(--low-soft)}
+  .chip.accent{color:var(--accent);border-color:var(--accent-line);background:var(--accent-soft)}
+
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th{text-align:left;font-family:var(--f-mono);font-size:10.5px;letter-spacing:.09em;
+    text-transform:uppercase;color:var(--muted);font-weight:500;
+    border-bottom:1px solid var(--line);padding:7px 10px}
+  td{padding:9px 10px;border-bottom:1px solid var(--line-soft);vertical-align:top}
+  tr:last-child td{border-bottom:0}
+  td.num{text-align:right;font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+  .tblwrap{overflow-x:auto}
+
+  /* queue */
+  .alert{display:grid;grid-template-columns:34px 1fr;gap:13px;padding:14px 16px;
+    border-bottom:1px solid var(--line-soft)}
+  .alert:last-child{border-bottom:0}
+  .prio{font-family:var(--f-mono);font-size:16px;font-weight:600;text-align:center;
+    border-radius:6px;padding:5px 0;height:fit-content}
+  .p1{background:var(--critical-soft);color:var(--critical);border:1px solid #ff6b4a44}
+  .p2{background:var(--high-soft);color:var(--high);border:1px solid #ffa03344}
+  .p3{background:var(--medium-soft);color:var(--medium);border:1px solid #4fb3f544}
+  .p4{background:var(--low-soft);color:var(--low);border:1px solid var(--line)}
+  .alert .hd{display:flex;gap:9px;align-items:baseline;flex-wrap:wrap}
+  .alert .ttl{font-weight:600;font-size:14.5px}
+  .alert .body{font-size:13.5px;color:var(--ink-2);margin-top:5px}
+  .alert .meta{font-family:var(--f-mono);font-size:11px;color:var(--muted);margin-top:7px;
+    display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+  .held{margin-top:8px;font-size:12.5px;color:var(--high);background:var(--high-soft);
+    border-left:2px solid var(--high);padding:6px 10px;border-radius:0 5px 5px 0}
+  .risk-bars{display:grid;grid-template-columns:repeat(auto-fit,minmax(86px,1fr));
+    gap:8px;margin-top:9px}
+  .rb .rk{font-family:var(--f-mono);font-size:9.5px;letter-spacing:.07em;
+    text-transform:uppercase;color:var(--muted)}
+  .rb .track{height:3px;background:var(--line);border-radius:2px;margin-top:3px;overflow:hidden}
+  .rb .fill{height:100%;background:var(--accent)}
+  .rb .rv{font-family:var(--f-mono);font-size:11px;color:var(--ink-2);margin-top:2px}
+
+  /* change viewer */
+  .viewer{display:grid;grid-template-columns:1fr;gap:14px}
+  .viewer .swipe{max-width:560px;width:100%;justify-self:start}
+  .swipe{position:relative;border-radius:8px;overflow:hidden;background:#000;
+    border:1px solid var(--line);touch-action:none}
+  .swipe img{display:block;width:100%;height:auto;image-rendering:pixelated}
+  .swipe .top{position:absolute;inset:0;overflow:hidden}
+  .swipe .top img{position:absolute;top:0;left:0;width:100%}
+  .swipe .handle{position:absolute;top:0;bottom:0;width:2px;background:var(--accent);
+    box-shadow:0 0 8px #a3d94888;pointer-events:none}
+  .swipe .knob{position:absolute;top:50%;width:26px;height:26px;margin:-13px 0 0 -13px;
+    border-radius:50%;background:var(--accent);border:2px solid #070D14;pointer-events:none}
+  .swipe .cap{position:absolute;bottom:7px;font-family:var(--f-mono);font-size:10px;
+    letter-spacing:.08em;text-transform:uppercase;background:#070d14cc;color:var(--ink-2);
+    padding:2px 7px;border-radius:3px;pointer-events:none}
+  .swipe .cap.l{left:7px} .swipe .cap.r{right:7px}
+  .vgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+  .vgrid figure{margin:0}
+  .vgrid img{width:100%;height:auto;display:block;border-radius:7px;
+    border:1px solid var(--line);image-rendering:pixelated}
+  .vgrid figcaption{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.06em;
+    text-transform:uppercase;color:var(--muted);margin-top:6px}
+  input[type=range]{width:100%;accent-color:var(--accent)}
+
+  /* coverage bars */
+  .covbars{display:flex;gap:4px;align-items:flex-end;height:78px;margin-top:4px}
+  .covcol{flex:1;display:flex;flex-direction:column;justify-content:flex-end;gap:1px;min-width:0}
+  .covcol .seg{border-radius:1px}
+  .covcol .sar{background:var(--sar)} .covcol .optical{background:var(--optical)}
+  .covcol .cloudy{background:var(--cloud)}
+  .covcol .m{font-family:var(--f-mono);font-size:8.5px;color:var(--muted);
+    text-align:center;margin-top:4px;white-space:nowrap;overflow:hidden}
+  .legend{display:flex;gap:13px;flex-wrap:wrap;font-family:var(--f-mono);font-size:10.5px;
+    color:var(--muted);margin-top:9px}
+  .legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;
+    vertical-align:-1px}
+
+  /* anomaly strip */
+  .anomstrip{display:flex;gap:2px;align-items:flex-end;height:56px;margin-top:6px}
+  .anomstrip .b{flex:1;min-width:2px;border-radius:1px 1px 0 0;background:var(--line)}
+
+  details.ev{border:1px solid var(--line);border-radius:8px;background:var(--sunken);
+    margin-top:10px}
+  details.ev summary{cursor:pointer;padding:9px 13px;font-family:var(--f-mono);
+    font-size:11.5px;letter-spacing:.05em;color:var(--ink-2);list-style:none}
+  details.ev summary::-webkit-details-marker{display:none}
+  details.ev summary::before{content:"▸ ";color:var(--accent)}
+  details.ev[open] summary::before{content:"▾ "}
+  details.ev .inner{padding:0 13px 13px;font-size:13px;color:var(--ink-2)}
+
+  .callout{border-left:2px solid var(--accent);background:var(--accent-soft);
+    padding:12px 15px;border-radius:0 7px 7px 0;font-size:13.5px;color:var(--ink-2)}
+  .callout b{color:var(--ink)}
+  footer{margin-top:56px;border-top:1px solid var(--line);padding-top:20px;
+    font-size:12.5px;color:var(--muted)}
+  .hidden{display:none !important}
+</style>
+
+<div class="mast">
+  <div class="wrap">
+    <div class="brand">
+      <h1>Terra<em>Shield</em></h1>
+      <span class="tag">Space intelligence · mission ready</span>
+    </div>
+    <p class="lede" id="lede"></p>
+    <div class="stamp" id="stamp"></div>
+    <div class="metrics" id="metrics"></div>
+  </div>
+</div>
+
+<div class="wrap">
+
+<section>
+  <div class="sec-head">
+    <h2>Monitored estate</h2>
+    <p class="note">Status describes the last three weeks of each site's own
+      record, measured against that site's own history rather than a fixed
+      threshold. Select a site to open it below.</p>
+  </div>
+  <div class="mapgrid">
+    <div class="panel" style="padding:10px"><svg class="estate" id="estate"
+      viewBox="0 0 560 360" role="img" aria-label="Monitored areas"></svg></div>
+    <div class="sitelist" id="sitelist"></div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <h2>Alert queue</h2>
+    <p class="note">Ranked by composite risk, not by severity alone — a
+      confirmed medium-severity change outranks an unconfirmed high-severity one.</p>
+  </div>
+  <div class="panel" id="queue"></div>
+</section>
+
+<section id="site-section">
+  <div class="sec-head">
+    <h2 id="site-title">Site intelligence</h2>
+    <p class="note" id="site-note"></p>
+  </div>
+  <div id="site-body"></div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <h2>Alert rules</h2>
+    <p class="note">Rules are data, not code: every alert can be traced to the
+      sentence that raised it.</p>
+  </div>
+  <div class="panel panel-pad tblwrap"><table id="rules"></table></div>
+</section>
+
+<footer>
+  <p><b>What this is.</b> TerraShield is an analyst-assistance and monitoring
+  system. It reports what changed, where, when, and how far that departs from a
+  site's own recorded history. It makes no assessment of cause, ownership or
+  intent, and every finding is subject to analyst review.</p>
+  <p>Findings on this page were produced by the pipeline in
+  <span class="mono">src/terrashield/</span> from modelled imagery over four real
+  civilian sites. Detection precision, recall and confidence calibration are
+  measured, not claimed — run <span class="mono">terrashield evaluate</span>.</p>
+  <p id="audit-line" class="mono"></p>
+</footer>
+</div>
+
+<script type="application/json" id="payload">{
+ "generated_at": "2026-09-11T21:45:22.715093+00:00",
+ "as_of": "2026-09-11",
+ "organisation": "org-sensegrass-demo",
+ "window_days": 210,
+ "totals": {
+  "sites": 4,
+  "alerts": 28,
+  "priority_1": 2,
+  "priority_2": 7,
+  "changes": 195,
+  "objects": 933,
+  "usable_scenes": 120,
+  "acquired_scenes": 159
+ },
+ "audit": {
+  "chain_intact": true,
+  "first_bad_entry": null,
+  "entries": 126
+ },
+ "sites": [
+  {
+   "id": "IN-BHD-SOLAR",
+   "name": "Bhadla Solar Park \u2014 sector 3",
+   "kind": "energy",
+   "country": "IN",
+   "description": "Photovoltaic array blocks, substation and access roads.",
+   "area_km2": 13.4,
+   "centroid": [
+    71.905,
+    27.539
+   ],
+   "bbox": [
+    71.8837,
+    27.52461,
+    71.9263,
+    27.55339
+   ],
+   "fingerprint": "b57793a54f103508",
+   "headline": "Three array blocks commissioned; one mobilisation episode",
+   "monitored_from": "2026-02-13",
+   "monitored_to": "2026-04-15",
+   "status": "anomalous",
+   "status_window_days": 21,
+   "peak_anomaly_score": 59.5,
+   "recent_anomaly_score": 59.5,
+   "recent_alert_count": 1,
+   "coverage": {
+    "aoi_id": "IN-BHD-SOLAR",
+    "start": "2026-02-13",
+    "end": "2026-04-15",
+    "acquired": 28,
+    "usable": 27,
+    "usable_fraction": 0.964,
+    "by_constellation": {
+     "sentinel-1": 11,
+     "sentinel-2": 13,
+     "landsat-9": 3
+    },
+    "longest_gap_days": 5,
+    "last_usable": "2026-04-15",
+    "rejected_reasons": {
+     "cloud": 1
+    }
+   },
+   "coverage_by_month": [
+    {
+     "month": "2026-02",
+     "usable": 7,
+     "cloudy": 1,
+     "sar": 3,
+     "optical": 4
+    },
+    {
+     "month": "2026-03",
+     "usable": 13,
+     "cloudy": 0,
+     "sar": 5,
+     "optical": 8
+    },
+    {
+     "month": "2026-04",
+     "usable": 7,
+     "cloudy": 0,
+     "sar": 3,
+     "optical": 4
+    }
+   ],
+   "change_count": 10,
+   "alert_count": 2,
+   "changes": [
+    {
+     "id": "chg-7c0f93e801f0",
+     "type": "new_structure",
+     "detected_on": "2026-03-20",
+     "area_m2": 247600.0,
+     "confidence": 0.97,
+     "severity": "high",
+     "explanation": "compact 247,600 m2 footprint darker than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+     "evidence_id": "ev-680e1af54bb02652",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-a657790bd983",
+     "type": "new_structure",
+     "detected_on": "2026-03-30",
+     "area_m2": 200700.0,
+     "confidence": 0.97,
+     "severity": "high",
+     "explanation": "compact 200,700 m2 footprint darker than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+     "evidence_id": "ev-b51c973af15d5f61",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-98fa1de7747d",
+     "type": "new_structure",
+     "detected_on": "2026-04-04",
+     "area_m2": 1500.0,
+     "confidence": 0.633,
+     "severity": "low",
+     "explanation": "compact 1,500 m2 footprint darker than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+     "evidence_id": "ev-a11d92eaa366e604",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-f3fa27043ce1",
+     "type": "surface_change",
+     "detected_on": "2026-04-14",
+     "area_m2": 900.0,
+     "confidence": 0.574,
+     "severity": "low",
+     "explanation": "900 m2 brighter by 0.069 in reflectance; shape and texture do not support a more specific description",
+     "evidence_id": "ev-355846f97422b264",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-a00a82cd749b",
+     "type": "surface_change",
+     "detected_on": "2026-04-14",
+     "area_m2": 900.0,
+     "confidence": 0.56,
+     "severity": "low",
+     "explanation": "900 m2 brighter by 0.067 in reflectance; shape and texture do not support a more specific description",
+     "evidence_id": "ev-3a1fc269e37efe34",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-c5505862fef1",
+     "type": "surface_change",
+     "detected_on": "2026-03-27",
+     "area_m2": 1200.0,
+     "confidence": 0.559,
+     "severity": "low",
+     "explanation": "1,200 m2 brighter by 0.589 in backscatter (natural-log ratio); shape and texture do not support a more specific description",
+     "evidence_id": "ev-ec85876f8a027a55",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-a39538c3bf01",
+     "type": "surface_change",
+     "detected_on": "2026-04-04",
+     "area_m2": 1400.0,
+     "confidence": 0.556,
+     "severity": "low",
+     "explanation": "1,400 m2 darker by 0.064 in reflectance; shape and texture do not support a more specific description",
+     "evidence_id": "ev-0f361e2599ad9a89",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-9547571f697d",
+     "type": "surface_change",
+     "detected_on": "2026-03-21",
+     "area_m2": 900.0,
+     "confidence": 0.555,
+     "severity": "low",
+     "explanation": "900 m2 brighter by 0.597 in backscatter (natural-log ratio); shape and texture do not support a more specific description",
+     "evidence_id": "ev-31ea801a16101142",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-8209e72cc9de",
+     "type": "surface_change",
+     "detected_on": "2026-03-25",
+     "area_m2": 900.0,
+     "confidence": 0.543,
+     "severity": "low",
+     "explanation": "900 m2 darker by 0.064 in reflectance; shape and texture do not support a more specific description",
+     "evidence_id": "ev-20ec509cf2053ade",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-b72ceb70dd9e",
+     "type": "surface_change",
+     "detected_on": "2026-03-27",
+     "area_m2": 1200.0,
+     "confidence": 0.532,
+     "severity": "low",
+     "explanation": "1,200 m2 brighter by 0.558 in backscatter (natural-log ratio); shape and texture do not support a more specific description",
+     "evidence_id": "ev-7a7a391993fd0eb6",
+     "review_status": "pending"
+    }
+   ],
+   "anomalies": [
+    {
+     "date": "2026-03-03",
+     "score": 0.0,
+     "confidence": 0.144,
+     "severity": "low",
+     "baseline_n": 0,
+     "reasons": []
+    },
+    {
+     "date": "2026-03-05",
+     "score": 0.0,
+     "confidence": 0.355,
+     "severity": "low",
+     "baseline_n": 1,
+     "reasons": []
+    },
+    {
+     "date": "2026-03-09",
+     "score": 0.0,
+     "confidence": 0.404,
+     "severity": "low",
+     "baseline_n": 2,
+     "reasons": []
+    },
+    {
+     "date": "2026-03-10",
+     "score": 0.0,
+     "confidence": 0.431,
+     "severity": "low",
+     "baseline_n": 3,
+     "reasons": []
+    },
+    {
+     "date": "2026-03-14",
+     "score": 0.0,
+     "confidence": 0.382,
+     "severity": "low",
+     "baseline_n": 4,
+     "reasons": []
+    },
+    {
+     "date": "2026-03-15",
+     "score": 17.5,
+     "confidence": 0.485,
+     "severity": "low",
+     "baseline_n": 5,
+     "reasons": [
+      "aircraft count is 1 against a median of 0 across all days (n=5, 1.0 robust deviations above)",
+      "baseline rests on 5 prior observation(s), below the 24 at which this site would be considered characterised; treat the comparison as provisional"
+     ]
+    },
+    {
+     "date": "2026-03-20",
+     "score": 59.5,
+     "confidence": 0.512,
+     "severity": "medium",
+     "baseline_n": 6,
+     "reasons": [
+      "aircraft count has risen about 3 over the preceding 60 days (3.0 robust deviations across the window)",
+      "baseline rests on 6 prior observation(s), below the 24 at which this site would be considered characterised; treat the comparison as provisional"
+     ]
+    },
+    {
+     "date": "2026-03-21",
+     "score": 59.5,
+     "confidence": 0.54,
+     "severity": "medium",
+     "baseline_n": 7,
+     "reasons": [
+      "aircraft count has risen about 4 over the preceding 60 days (3.8 robust deviations across the window) \u2014 no single day in it stands out",
+      "baseline rests on 7 prior observation(s), below the 24 at which this site would be considered characterised; treat the comparison as provisional"
+     ]
+    },
+    {
+     "date": "2026-03-25",
+     "score": 59.5,
+     "confidence": 0.558,
+     "severity": "medium",
+     "baseline_n": 8,
+     "reasons": [
+      "aircraft count has risen about 2 over the preceding 60 days (2.1 robust deviations across the window) \u2014 no single day in it stands out",
+      "baseline rests on 8 prior observation(s), below the 24 at which this site would be considered characterised; treat the comparison as provisional"
+     ]
+    },
+    {
+     "date": "2026-03-27",
+     "score": 31.4,
+     "confidence": 0.594,
+     "severity": "low",
+     "baseline_n": 9,
+     "reasons": [
+      "aircraft count has risen about 1 over the preceding 60 days (1.1 robust deviations across the window) \u2014 no single day in it stands out",
+      "baseline rests on 9 prior observation(s), below the 24 at which this site would be considered characterised; treat the comparison as provisional"
+     ]
+    },
+    {
+     "date": "2026-03-30",
+     "score": 15.2,
+     "confidence": 0.583,
+     "severity": "low",
+     "baseline_n": 10,
+     "reasons": [
+      "aircraft count has risen about 1 over the preceding 60 days (0.5 robust deviations across the window) \u2014 no single day in it stands out",
+      "baseline rests on 10 prior observation(s), below the 24 at which this site would be considered characterised; treat the comparison as provisional"
+     ]
+    },
+    {
+     "date": "2026-04-02",
+     "score": 5.4,
+     "confidence": 0.648,
+     "severity": "low",
+     "baseline_n": 11,
+     "reasons": [
+      "aircraft count has risen about 0 over the preceding 60 days (0.2 robust deviations across the window) \u2014 no single day in it stands out",
+      "baseline rests on 11 prior observation(s), below the 24 at which this site would be considered characterised; treat the comparison as provisional"
+     ]
+    },
+    {
+     "date": "2026-04-04",
+     "score": 0.0,
+     "confidence": 0.673,
+     "severity": "low",
+     "baseline_n": 12,
+     "reasons": []
+    },
+    {
+     "date": "2026-04-08",
+     "score": 0.0,
+     "confidence": 0.702,
+     "severity": "low",
+     "baseline_n": 13,
+     "reasons": []
+    },
+    {
+     "date": "2026-04-09",
+     "score": 0.0,
+     "confidence": 0.621,
+     "severity": "low",
+     "baseline_n": 14,
+     "reasons": []
+    },
+    {
+     "date": "2026-04-14",
+     "score": 0.0,
+     "confidence": 0.749,
+     "severity": "low",
+     "baseline_n": 15,
+     "reasons": []
+    },
+    {
+     "date": "2026-04-15",
+     "score": 0.0,
+     "confidence": 0.657,
+     "severity": "low",
+     "baseline_n": 16,
+     "reasons": []
+    }
+   ],
+   "chips": [
+    {
+     "change_id": "chg-7c0f93e801f0",
+     "type": "new_structure",
+     "severity": "high",
+     "confidence": 0.97,
+     "area_m2": 247600.0,
+     "detected_on": "2026-03-20",
+     "explanation": "compact 247,600 m2 footprint darker than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+     "evidence_id": "ev-680e1af54bb02652",
+     "before": "chips/chg-7c0f93e801f0-before.png",
+     "after": "chips/chg-7c0f93e801f0-after.png",
+     "mask": "chips/chg-7c0f93e801f0-mask.png",
+     "detail_before": "chips/chg-7c0f93e801f0-detail_before.png",
+     "detail_after": "chips/chg-7c0f93e801f0-detail_after.png",
+     "detail_mask": "chips/chg-7c0f93e801f0-detail_mask.png",
+     "before_scene": "sentinel-2:IN-BHD-SOLAR:2026-03-15",
+     "after_scene": "sentinel-2:IN-BHD-SOLAR:2026-03-20",
+     "before_on": "2026-03-15",
+     "after_on": "2026-03-20",
+     "constellation": "sentinel-2",
+     "sensor": "optical",
+     "gsd_m": 10.0,
+     "width": 420,
+     "height": 320,
+     "detail_cells": [
+      143,
+      118
+     ],
+     "registration_shift": [
+      0,
+      0
+     ],
+     "noise_floor": 0.01196,
+     "obscured_fraction": 0.0
+    },
+    {
+     "change_id": "chg-a657790bd983",
+     "type": "new_structure",
+     "severity": "high",
+     "confidence": 0.97,
+     "area_m2": 200700.0,
+     "detected_on": "2026-03-30",
+     "explanation": "compact 200,700 m2 footprint darker than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+     "evidence_id": "ev-b51c973af15d5f61",
+     "before": "chips/chg-a657790bd983-before.png",
+     "after": "chips/chg-a657790bd983-after.png",
+     "mask": "chips/chg-a657790bd983-mask.png",
+     "detail_before": "chips/chg-a657790bd983-detail_before.png",
+     "detail_after": "chips/chg-a657790bd983-detail_after.png",
+     "detail_mask": "chips/chg-a657790bd983-detail_mask.png",
+     "before_scene": "landsat-9:IN-BHD-SOLAR:2026-03-14",
+     "after_scene": "landsat-9:IN-BHD-SOLAR:2026-03-30",
+     "before_on": "2026-03-14",
+     "after_on": "2026-03-30",
+     "constellation": "landsat-9",
+     "sensor": "optical",
+     "gsd_m": 30.0,
+     "width": 140,
+     "height": 107,
+     "detail_cells": [
+      79,
+      74
+     ],
+     "registration_shift": [
+      0,
+      0
+     ],
+     "noise_floor": 0.0175,
+     "obscured_fraction": 0.4696
+    }
+   ]
+  },
+  {
+   "id": "IN-MUN-PORT",
+   "name": "Mundra Port \u2014 container terminal",
+   "kind": "port",
+   "country": "IN",
+   "description": "Container terminal, berths and landside yard.",
+   "area_km2": 15.6,
+   "centroid": [
+    69.705,
+    22.739
+   ],
+   "bbox": [
+    69.68257,
+    22.72371,
+    69.72743,
+    22.75429
+   ],
+   "fingerprint": "419902692ff9e981",
+   "headline": "Terminal expansion and a two-week congestion episode",
+   "monitored_from": "2026-02-13",
+   "monitored_to": "2026-05-29",
+   "status": "anomalous",
+   "status_window_days": 21,
+   "peak_anomaly_score": 85.2,
+   "recent_anomaly_score": 80.3,
+   "recent_alert_count": 3,
+   "coverage": {
+    "aoi_id": "IN-MUN-PORT",
+    "start": "2026-02-13",
+    "end": "2026-05-29",
+    "acquired": 46,
+    "usable": 37,
+    "usable_fraction": 0.804,
+    "by_constellation": {
+     "sentinel-1": 18,
+     "sentinel-2": 16,
+     "landsat-9": 3
+    },
+    "longest_gap_days": 6,
+    "last_usable": "2026-05-29",
+    "rejected_reasons": {
+     "cloud": 9
+    }
+   },
+   "coverage_by_month": [
+    {
+     "month": "2026-02",
+     "usable": 6,
+     "cloudy": 2,
+     "sar": 3,
+     "optical": 3
+    },
+    {
+     "month": "2026-03",
+     "usable": 10,
+     "cloudy": 3,
+     "sar": 5,
+     "optical": 5
+    },
+    {
+     "month": "2026-04",
+     "usable": 12,
+     "cloudy": 0,
+     "sar": 5,
+     "optical": 7
+    },
+    {
+     "month": "2026-05",
+     "usable": 9,
+     "cloudy": 4,
+     "sar": 5,
+     "optical": 4
+    }
+   ],
+   "change_count": 86,
+   "alert_count": 8,
+   "changes": [
+    {
+     "id": "chg-e0d3a857ddc0",
+     "type": "inundation",
+     "detected_on": "2026-04-26",
+     "area_m2": 17600.0,
+     "confidence": 0.97,
+     "severity": "high",
+     "explanation": "1.8 ha changed from a land signature (0.77) to a water signature (0.03)",
+     "evidence_id": "ev-d0a9f5e377da9375",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-cc7b87e38c0f",
+     "type": "construction_activity",
+     "detected_on": "2026-05-17",
+     "area_m2": 32400.0,
+     "confidence": 0.97,
+     "severity": "medium",
+     "explanation": "compact 32,400 m2 area with local variation up 613%; consistent with disturbed ground, earthworks or materials laid out",
+     "evidence_id": "ev-4ab1ea5bdc6c3793",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-8c891d31ca69",
+     "type": "construction_activity",
+     "detected_on": "2026-04-24",
+     "area_m2": 27200.0,
+     "confidence": 0.97,
+     "severity": "medium",
+     "explanation": "compact 27,200 m2 area with local variation up 148%; consistent with disturbed ground, earthworks or materials laid out",
+     "evidence_id": "ev-d4f1f22865fced9a",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-44bd0bf076f1",
+     "type": "linear_feature",
+     "detected_on": "2026-04-19",
+     "area_m2": 5400.0,
+     "confidence": 0.97,
+     "severity": "medium",
+     "explanation": "linear feature 185 m long and about 29 m wide, brighter than before; consistent with a new track, road or berm",
+     "evidence_id": "ev-953f2bda20a658da",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-6c8f479a6788",
+     "type": "new_structure",
+     "detected_on": "2026-04-14",
+     "area_m2": 3700.0,
+     "confidence": 0.943,
+     "severity": "medium",
+     "explanation": "compact 3,700 m2 footprint, darker than before, with local variation down 94% -- a uniform engineered surface has replaced a varied natural one",
+     "evidence_id": "ev-afa352a1b381dfad",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-d86d0daad680",
+     "type": "structure_removed",
+     "detected_on": "2026-04-20",
+     "area_m2": 2700.0,
+     "confidence": 0.922,
+     "severity": "medium",
+     "explanation": "compact 2,700 m2 footprint whose layover and shadow returns have fallen 42%; consistent with a vertical structure no longer present",
+     "evidence_id": "ev-0bda95faf4b7a9cc",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-22af02a03cba",
+     "type": "new_structure",
+     "detected_on": "2026-05-08",
+     "area_m2": 2100.0,
+     "confidence": 0.908,
+     "severity": "medium",
+     "explanation": "compact 2,100 m2 footprint darker than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+     "evidence_id": "ev-8aa4e8c6e533fc4e",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-43566506a6a3",
+     "type": "new_structure",
+     "detected_on": "2026-04-14",
+     "area_m2": 1800.0,
+     "confidence": 0.9,
+     "severity": "medium",
+     "explanation": "compact 1,800 m2 footprint darker than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+     "evidence_id": "ev-b1a21557ea79f29f",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-6af4c030acf7",
+     "type": "linear_feature",
+     "detected_on": "2026-04-29",
+     "area_m2": 5700.0,
+     "confidence": 0.894,
+     "severity": "medium",
+     "explanation": "linear feature 196 m long and about 29 m wide, brighter than before; consistent with a new track, road or berm",
+     "evidence_id": "ev-fd82ef2d269169db",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-da9e837197fc",
+     "type": "new_structure",
+     "detected_on": "2026-04-19",
+     "area_m2": 2100.0,
+     "confidence": 0.852,
+     "severity": "medium",
+     "explanation": "compact 2,100 m2 footprint brighter than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+     "evidence_id": "ev-e0cc45e3511316b8",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-09af509c61f9",
+     "type": "new_structure",
+     "detected_on": "2026-04-26",
+     "area_m2": 20600.0,
+     "confidence": 0.764,
+     "severity": "medium",
+     "explanation": "compact 20,600 m2 footprint with backscatter structure up 122%; bright layover and shadow against flat ground is the radar signature of a vertical structure",
+     "evidence_id": "ev-7a3176cd594e8c21",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-332b3e755e7c",
+     "type": "new_structure",
+     "detected_on": "2026-05-02",
+     "area_m2": 20700.0,
+     "confidence": 0.751,
+     "severity": "medium",
+     "explanation": "compact 20,700 m2 footprint with backscatter structure up 109%; bright layover and shadow against flat ground is the radar signature of a vertical structure",
+     "evidence_id": "ev-64875c5f413b0317",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-1b79553a4883",
+     "type": "linear_feature",
+     "detected_on": "2026-04-19",
+     "area_m2": 8100.0,
+     "confidence": 0.748,
+     "severity": "medium",
+     "explanation": "linear feature 278 m long and about 29 m wide, brighter than before; consistent with a new track, road or berm",
+     "evidence_id": "ev-89a8236856cdf7c8",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-0eea1e6e6bed",
+     "type": "surface_change",
+     "detected_on": "2026-04-14",
+     "area_m2": 14500.0,
+     "confidence": 0.97,
+     "severity": "low",
+     "explanation": "14,500 m2 brighter by 0.277 in reflectance; shape and texture do not support a more specific description",
+     "evidence_id": "ev-6cedd2283b46065d",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-ccc9f559530a",
+     "type": "surface_change",
+     "detected_on": "2026-04-29",
+     "area_m2": 4500.0,
+     "confidence": 0.898,
+     "severity": "low",
+     "explanation": "4,500 m2 brighter by 0.103 in reflectance; shape and texture do not support a more specific description",
+     "evidence_id": "ev-72f054141b9c0d72",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-b07ef5098ce2",
+     "type": "surface_change",
+     "detected_on": "2026-05-08",
+     "area_m2": 1400.0,
+     "confidence": 0.888,
+     "severity": "low",
+     "explanation": "1,400 m2 darker by 1.180 in backscatter (natural-log ratio); shape and texture do not support a more specific description",
+     "evidence_id": "ev-615084b619a8bf56",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-2578ea7f1864",
+     "type": "surface_change",
+     "detected_on": "2026-05-26",
+     "area_m2": 1200.0,
+     "confidence": 0.882,
+     "severity": "low",
+     "explanation": "1,200 m2 darker by 1.691 in backscatter (natural-log ratio); shape and texture do not support a more specific description",
+     "evidence_id": "ev-8401816d59b724f9",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-899601beb1c7",
+     "type": "surface_change",
+     "detected_on": "2026-04-19",
+     "area_m2": 900.0,
+     "confidence": 0.871,
+     "severity": "low",
+     "explanation": "900 m2 brighter by 0.123 in reflectance; shape and texture do not support a more specific description",
+     "evidence_id": "ev-f146f5ef50ad680a",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-3318f32b480b",
+     "type": "new_structure",
+     "detected_on": "2026-04-14",
+     "area_m2": 1800.0,
+     "confidence": 0.832,
+     "severity": "low",
+     "explanation": "compact 1,800 m2 footprint darker than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+     "evidence_id": "ev-e771f585dee25d49",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-581875b47ef4",
+     "type": "surface_change",
+     "detected_on": "2026-04-19",
+     "area_m2": 900.0,
+     "confidence": 0.819,
+     "severity": "low",
+     "explanation": "900 m2 brighter by 0.104 in reflectance; shape and texture do not support a more specific description",
+     "evidence_id": "ev-ee9a1ac9b9b363d5",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-d3c32e5e7bce",
+     "type": "surface_change",
+     "detected_on": "2026-04-14",
+     "area_m2": 1200.0,
+     "confidence": 0.789,
+     "severity": "low",
+     "explanation": "1,200 m2 darker by 0.100 in reflectance; shape and texture do not support a more specific description",
+     "evidence_id": "ev-3bace80366fa6de0",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-2d6f8ff3b4fb",
+     "type": "surface_change",
+     "detected_on": "2026-04-29",
+     "area_m2": 900.0,
+     "confidence": 0.779,
+     "severity": "low",
+     "explanation": "900 m2 brighter by 0.098 in reflectance; shape and texture do not support a more specific description",
+     "evidence_id": "ev-65e11fdbcb4db279",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-c24543c7877f",
+     "type": "new_structure",
+     "detected_on": "2026-04-14",
+     "area_m2": 2100.0,
+     "confidence": 0.768,
+     "severity": "low",
+     "explanation": "compact 2,100 m2 footprint darker than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+     "evidence_id": "ev-94b8b69727859b95",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-50b74a9bf3a2",
+     "type": "surface_change",
+     "detected_on": "2026-04-24",
+     "area_m2": 900.0,
+     "confidence": 0.768,
+     "severity": "low",
+     "explanation": "900 m2 darker by 0.095 in reflectance; shape and texture do not support a more specific description",
+     "evidence_id": "ev-98fb2f4dfb027abd",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-a692c807e15f",
+     "type": "surface_change",
+     "detected_on": "2026-04-29",
+     "area_m2": 900.0,
+     "confidence": 0.766,
+     "severity": "low",
+     "explanation": "900 m2 brighter by 0.097 in reflectance; shape and texture do not support a more specific description",
+     "evidence_id": "ev-c129ad7ba53b3704",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-f3056bc266f7",
+     "type": "surface_change",
+     "detected_on": "2026-04-24",
+     "area_m2": 1200.0,
+     "confidence": 0.759,
+     "severity": "low",
+     "explanation": "1,200 m2 brighter by 0.092 in reflectance; shape and texture do not support a more specific description",
+     "evidence_id": "ev-1b0421f1beed0d2a",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-7ee653e138e1",
+     "type": "new_structure",
+     "detected_on": "2026-04-29",
+     "area_m2": 1800.0,
+     "confidence": 0.757,
+     "severity": "low",
+     "explanation": "compact 1,800 m2 footprint brighter than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+     "evidence_id": "ev-d7d728f54f74caae",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-551d077a1997",
+     "type": "new_structure",
+     "detected_on": "2026-05-19",
+     "area_m2": 1800.0,
+     "confidence": 0.743,
+     "severity": "low",
+     "explanation": "compact 1,800 m2 footprint darker than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+     "evidence_id": "ev-8ad8bd1d378c033e",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-8372981a927b",
+     "type": "new_structure",
+     "detected_on": "2026-04-14",
+     "area_m2": 2400.0,
+     "confidence": 0.739,
+     "severity": "low",
+     "explanation": "compact 2,400 m2 footprint darker than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+     "evidence_id": "ev-1e37bb954401caa8",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-526e6d1d553f",
+     "type": "surface_change",
+     "detected_on": "2026-04-19",
+     "area_m2": 3600.0,
+     "confidence": 0.736,
+     "severity": "low",
+     "explanation": "3,600 m2 brighter by 0.083 in reflectance; shape and texture do not support a more specific description",
+     "evidence_id": "ev-db5072ba158f181b",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-656812b01992",
+     "type": "new_structure",
+     "detected_on": "2026-04-19",
+     "area_m2": 2700.0,
+     "confidence": 0.736,
+     "severity": "low",
+     "explanation": "compact 2,700 m2 footprint brighter than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+     "evidence_id": "ev-8901dfaa51f7ea23",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-501ce6da4d2d",
+     "type": "linear_feature",
+     "detected_on": "2026-04-19",
+     "area_m2": 6000.0,
+     "confidence": 0.729,
+     "severity": "low",
+     "explanation": "linear feature 206 m long and about 29 m wide, brighter than before; consistent with a new track, road or berm",
+     "evidence_id": "ev-52dfd27d4c61a0c9",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-f230342b5d73",
+     "type": "surface_change",
+     "detected_on": "2026-04-19",
+     "area_m2": 900.0,
+     "confidence": 0.722,
+     "severity": "low",
+     "explanation": "900 m2 darker by 0.091 in reflectance; shape and texture do not support a more specific description",
+     "evidence_id": "ev-7955f044aa126d3a",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-1b0edde759cb",
+     "type": "surface_change",
+     "detected_on": "2026-04-19",
+     "area_m2": 1200.0,
+     "confidence": 0.714,
+     "severity": "low",
+     "explanation": "1,200 m2 brighter by 0.088 in reflectance; shape and texture do not support a more specific description",
+     "evidence_id": "ev-9d222aadbd741cd5",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-7e5007c2a8a7",
+     "type": "surface_change",
+     "detected_on": "2026-04-19",
+     "area_m2": 900.0,
+     "confidence": 0.704,
+     "severity": "low",
+     "explanation": "900 m2 brighter by 0.088 in reflectance; shape and texture do not support a more specific description",
+     "evidence_id": "ev-3d5f7cbde766c6ba",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-be004aee73b8",
+     "type": "surface_change",
+     "detected_on": "2026-04-19",
+     "area_m2": 900.0,
+     "confidence": 0.702,
+     "severity": "low",
+     "explanation": "900 m2 brighter by 0.088 in reflectance; shape and texture do not support a more specific description",
+     "evidence_id": "ev-404c87b0c74c12ea",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-88cdd8e5ad15",
+     "type": "surface_change",
+     "detected_on": "2026-04-19",
+     "area_m2": 900.0,
+     "confidence": 0.7,
+     "severity": "low",
+     "explanation": "900 m2 brighter by 0.088 in reflectance; shape and texture do not support a more specific description",
+     "evidence_id": "ev-ed310d103c677211",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-95322504211e",
+     "type": "surface_change",
+     "detected_on": "2026-04-14",
+     "area_m2": 1200.0,
+     "confidence": 0.699,
+     "severity": "low",
+     "explanation": "1,200 m2 darker by 0.088 in reflectance; shape and texture do not support a more specific description",
+     "evidence_id": "ev-24b9322f3492e611",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-5af7ea2dce7c",
+     "type": "new_structure",
+     "detected_on": "2026-04-19",
+     "area_m2": 2900.0,
+     "confidence": 0.686,
+     "severity": "low",
+     "explanation": "compact 2,900 m2 footprint brighter than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+     "evidence_id": "ev-d2d5b9df701d48c3",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-aadb0dab4056",
+     "type": "new_structure",
+     "detected_on": "2026-05-29",
+     "area_m2": 1500.0,
+     "confidence": 0.684,
+     "severity": "low",
+     "explanation": "compact 1,500 m2 footprint darker than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+     "evidence_id": "ev-9ac6891a617eef57",
+     "review_status": "pending"
+    }
+   ],
+   "anomalies": [
+    {
+     "date": "2026-04-14",
+     "score": 0.0,
+     "confidence": 0.144,
+     "severity": "low",
+     "baseline_n": 0,
+     "reasons": []
+    },
+    {
+     "date": "2026-04-15",
+     "score": 0.0,
+     "confidence": 0.337,
+     "severity": "low",
+     "baseline_n": 1,
+     "reasons": []
+    },
+    {
+     "date": "2026-04-19",
+     "score": 23.9,
+     "confidence": 0.404,
+     "severity": "low",
+     "baseline_n": 2,
+     "reasons": [
+      "aircraft count is 1 against a median of 0 across all days (n=2, 1.0 robust deviations above)",
+      "object arrivals is 10 against a median of 8 across all days (n=2, 0.7 robust deviations above)",
+      "vessel count is 9 against a median of 6 across all days (n=2, 0.4 robust deviations above)"
+     ]
+    },
+    {
+     "date": "2026-04-20",
+     "score": 79.9,
+     "confidence": 0.431,
+     "severity": "high",
+     "baseline_n": 3,
+     "reasons": [
+      "container stack count is 30 against a median of 0 across all days (n=3, 30.0 robust deviations above)",
+      "object arrivals is 40 against a median of 8 across all days (n=3, 11.3 robust deviations above)",
+      "object departures is 11 against a median of 8 across all days (n=3, 2.0 robust deviations above)"
+     ]
+    },
+    {
+     "date": "2026-04-24",
+     "score": 85.2,
+     "confidence": 0.438,
+     "severity": "critical",
+     "baseline_n": 4,
+     "reasons": [
+      "aircraft count has risen about 5 over the preceding 60 days (4.6 robust deviations across the window) \u2014 no single day in it stands out",
+      "container stack count has risen about 208 over the preceding 60 days (207.7 robust deviations across the window) \u2014 no single day in it stands out",
+      "object arrivals has risen about 231 over the preceding 60 days (155.7 robust deviations across the window)"
+     ]
+    },
+    {
+     "date": "2026-04-26",
+     "score": 79.4,
+     "confidence": 0.485,
+     "severity": "high",
+     "baseline_n": 5,
+     "reasons": [
+      "aircraft count is 1 against a median of 0 across all days (n=5, 1.0 robust deviations above)",
+      "It has also risen about 1 over the preceding 60 days (0.6 robust deviations across the window).",
+      "container stack count is 12 against a median of 0 across all days (n=5, 12.0 robust deviations above)"
+     ]
+    },
+    {
+     "date": "2026-04-29",
+     "score": 85.2,
+     "confidence": 0.497,
+     "severity": "critical",
+     "baseline_n": 6,
+     "reasons": [
+      "aircraft count has risen about 3 over the preceding 60 days (3.0 robust deviations across the window) \u2014 no single day in it stands out",
+      "container stack count has risen about 46 over the preceding 60 days (45.5 robust deviations across the window) \u2014 no single day in it stands out",
+      "object arrivals has risen about 26 over the preceding 60 days (8.9 robust deviations across the window)"
+     ]
+    },
+    {
+     "date": "2026-05-02",
+     "score": 80.7,
+     "confidence": 0.54,
+     "severity": "high",
+     "baseline_n": 7,
+     "reasons": [
+      "aircraft count has risen about 1 over the preceding 60 days (1.0 robust deviations across the window) \u2014 no single day in it stands out",
+      "container stack count is 14 against a median of 0 across all days (n=7, 14.0 robust deviations above)",
+      "It has also risen about 10 over the preceding 60 days (9.6 robust deviations across the window)."
+     ]
+    },
+    {
+     "date": "2026-05-08",
+     "score": 78.5,
+     "confidence": 0.567,
+     "severity": "high",
+     "baseline_n": 8,
+     "reasons": [
+      "aircraft count is 1 against a median of 0 across all days (n=8, 1.0 robust deviations above)",
+      "It has also risen about 0 over the preceding 60 days (0.1 robust deviations across the window).",
+      "container stack count is 20 against a median of 0 across all days (n=8, 20.0 robust deviations above)"
+     ]
+    },
+    {
+     "date": "2026-05-14",
+     "score": 80.3,
+     "confidence": 0.525,
+     "severity": "high",
+     "baseline_n": 9,
+     "reasons": [
+      "aircraft count has risen about 1 over the preceding 60 days (1.3 robust deviations across the window) \u2014 no single day in it stands out",
+      "container stack count has risen about 34 over the preceding 60 days (33.8 robust deviations across the window) \u2014 no single day in it stands out",
+      "object arrivals has risen about 19 over the preceding 60 days (4.3 robust deviations across the window)"
+     ]
+    },
+    {
+     "date": "2026-05-17",
+     "score": 71.1,
+     "confidence": 0.526,
+     "severity": "high",
+     "baseline_n": 10,
+     "reasons": [
+      "aircraft count has risen about 0 over the preceding 60 days (0.3 robust deviations across the window) \u2014 no single day in it stands out",
+      "object arrivals has risen about 17 over the preceding 60 days (2.8 robust deviations across the window) \u2014 no single day in it stands out",
+      "object departures has risen about 16 over the preceding 60 days (7.4 robust deviations across the window) \u2014 no single day in it stands out"
+     ]
+    },
+    {
+     "date": "2026-05-19",
+     "score": 39.0,
+     "confidence": 0.561,
+     "severity": "low",
+     "baseline_n": 11,
+     "reasons": [
+      "object arrivals is 20 against a median of 11 across all days (n=11, 2.0 robust deviations above)",
+      "It has also risen about 3 over the preceding 60 days (0.7 robust deviations across the window).",
+      "object departures has risen about 3 over the preceding 60 days (1.2 robust deviations across the window) \u2014 no single day in it stands out"
+     ]
+    },
+    {
+     "date": "2026-05-20",
+     "score": 66.4,
+     "confidence": 0.675,
+     "severity": "high",
+     "baseline_n": 12,
+     "reasons": [
+      "container stack count is 27 against a median of 0 across all days (n=12, 27.0 robust deviations above)",
+      "object arrivals is 23 against a median of 12 across all days (n=12, 1.6 robust deviations above)",
+      "It has also risen about 6 over the preceding 60 days (0.9 robust deviations across the window)."
+     ]
+    },
+    {
+     "date": "2026-05-26",
+     "score": 69.7,
+     "confidence": 0.702,
+     "severity": "high",
+     "baseline_n": 13,
+     "reasons": [
+      "container stack count is 9 against a median of 0 across all days (n=13, 9.0 robust deviations above)",
+      "It has also risen about 7 over the preceding 60 days (7.2 robust deviations across the window).",
+      "object arrivals is 34 against a median of 13 across all days (n=13, 2.4 robust deviations above)"
+     ]
+    },
+    {
+     "date": "2026-05-29",
+     "score": 74.5,
+     "confidence": 0.662,
+     "severity": "high",
+     "baseline_n": 14,
+     "reasons": [
+      "container stack count has risen about 6 over the preceding 60 days (6.2 robust deviations across the window) \u2014 no single day in it stands out",
+      "object arrivals has risen about 16 over the preceding 60 days (1.8 robust deviations across the window) \u2014 no single day in it stands out",
+      "object departures has risen about 16 over the preceding 60 days (4.3 robust deviations across the window)"
+     ]
+    }
+   ],
+   "chips": [
+    {
+     "change_id": "chg-e0d3a857ddc0",
+     "type": "inundation",
+     "severity": "high",
+     "confidence": 0.97,
+     "area_m2": 17600.0,
+     "detected_on": "2026-04-26",
+     "explanation": "1.8 ha changed from a land signature (0.77) to a water signature (0.03)",
+     "evidence_id": "ev-d0a9f5e377da9375",
+     "before": "chips/chg-e0d3a857ddc0-before.png",
+     "after": "chips/chg-e0d3a857ddc0-after.png",
+     "mask": "chips/chg-e0d3a857ddc0-mask.png",
+     "detail_before": "chips/chg-e0d3a857ddc0-detail_before.png",
+     "detail_after": "chips/chg-e0d3a857ddc0-detail_after.png",
+     "detail_mask": "chips/chg-e0d3a857ddc0-detail_mask.png",
+     "before_scene": "sentinel-1:IN-MUN-PORT:2026-04-14",
+     "after_scene": "sentinel-1:IN-MUN-PORT:2026-04-26",
+     "before_on": "2026-04-14",
+     "after_on": "2026-04-26",
+     "constellation": "sentinel-1",
+     "sensor": "sar",
+     "gsd_m": 10.0,
+     "width": 460,
+     "height": 340,
+     "detail_cells": [
+      83,
+      80
+     ],
+     "registration_shift": [
+      -1,
+      -2
+     ],
+     "noise_floor": 0.11704,
+     "obscured_fraction": 0.0
+    },
+    {
+     "change_id": "chg-cc7b87e38c0f",
+     "type": "construction_activity",
+     "severity": "medium",
+     "confidence": 0.97,
+     "area_m2": 32400.0,
+     "detected_on": "2026-05-17",
+     "explanation": "compact 32,400 m2 area with local variation up 613%; consistent with disturbed ground, earthworks or materials laid out",
+     "evidence_id": "ev-4ab1ea5bdc6c3793",
+     "before": "chips/chg-cc7b87e38c0f-before.png",
+     "after": "chips/chg-cc7b87e38c0f-after.png",
+     "mask": "chips/chg-cc7b87e38c0f-mask.png",
+     "detail_before": "chips/chg-cc7b87e38c0f-detail_before.png",
+     "detail_after": "chips/chg-cc7b87e38c0f-detail_after.png",
+     "detail_mask": "chips/chg-cc7b87e38c0f-detail_mask.png",
+     "before_scene": "landsat-9:IN-MUN-PORT:2026-04-15",
+     "after_scene": "landsat-9:IN-MUN-PORT:2026-05-17",
+     "before_on": "2026-04-15",
+     "after_on": "2026-05-17",
+     "constellation": "landsat-9",
+     "sensor": "optical",
+     "gsd_m": 30.0,
+     "width": 153,
+     "height": 113,
+     "detail_cells": [
+      68,
+      65
+     ],
+     "registration_shift": [
+      0,
+      0
+     ],
+     "noise_floor": 0.01672,
+     "obscured_fraction": 0.4797
+    }
+   ]
+  },
+  {
+   "id": "IN-KCH-SECTOR",
+   "name": "Rann of Kutch \u2014 sector 12",
+   "kind": "border_sector",
+   "country": "IN",
+   "description": "Remote salt flat, seasonal water, one metalled track.",
+   "area_km2": 18.0,
+   "centroid": [
+    70.512,
+    23.908
+   ],
+   "bbox": [
+    70.48741,
+    23.89181,
+    70.53659,
+    23.92419
+   ],
+   "fingerprint": "260c1c77152d1689",
+   "headline": "Track extension, two new structures, a vehicle concentration",
+   "monitored_from": "2026-05-02",
+   "monitored_to": "2026-08-18",
+   "status": "anomalous",
+   "status_window_days": 21,
+   "peak_anomaly_score": 62.9,
+   "recent_anomaly_score": 62.9,
+   "recent_alert_count": 8,
+   "coverage": {
+    "aoi_id": "IN-KCH-SECTOR",
+    "start": "2026-05-02",
+    "end": "2026-08-18",
+    "acquired": 47,
+    "usable": 24,
+    "usable_fraction": 0.511,
+    "by_constellation": {
+     "sentinel-1": 19,
+     "sentinel-2": 5
+    },
+    "longest_gap_days": 6,
+    "last_usable": "2026-08-18",
+    "rejected_reasons": {
+     "cloud": 23
+    }
+   },
+   "coverage_by_month": [
+    {
+     "month": "2026-05",
+     "usable": 9,
+     "cloudy": 3,
+     "sar": 5,
+     "optical": 4
+    },
+    {
+     "month": "2026-06",
+     "usable": 6,
+     "cloudy": 7,
+     "sar": 5,
+     "optical": 1
+    },
+    {
+     "month": "2026-07",
+     "usable": 6,
+     "cloudy": 8,
+     "sar": 6,
+     "optical": 0
+    },
+    {
+     "month": "2026-08",
+     "usable": 3,
+     "cloudy": 5,
+     "sar": 3,
+     "optical": 0
+    }
+   ],
+   "change_count": 11,
+   "alert_count": 8,
+   "changes": [
+    {
+     "id": "chg-a429d23bc49c",
+     "type": "linear_feature",
+     "detected_on": "2026-08-06",
+     "area_m2": 7100.0,
+     "confidence": 0.97,
+     "severity": "high",
+     "explanation": "linear feature 216 m long and about 33 m wide, darker than before; consistent with a new track, road or berm",
+     "evidence_id": "ev-f52cdb1ab6f7e2a7",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-9b6456ec10ae",
+     "type": "new_structure",
+     "detected_on": "2026-08-18",
+     "area_m2": 3300.0,
+     "confidence": 0.935,
+     "severity": "high",
+     "explanation": "compact 3,300 m2 footprint with backscatter structure up 767%; bright layover and shadow against flat ground is the radar signature of a vertical structure",
+     "evidence_id": "ev-fcad958dffc5398a",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-10235653b649",
+     "type": "new_structure",
+     "detected_on": "2026-08-06",
+     "area_m2": 3300.0,
+     "confidence": 0.935,
+     "severity": "high",
+     "explanation": "compact 3,300 m2 footprint with backscatter structure up 1549%; bright layover and shadow against flat ground is the radar signature of a vertical structure",
+     "evidence_id": "ev-77cb5f91f95a57c4",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-393ceae39f34",
+     "type": "new_structure",
+     "detected_on": "2026-08-12",
+     "area_m2": 3200.0,
+     "confidence": 0.933,
+     "severity": "high",
+     "explanation": "compact 3,200 m2 footprint with backscatter structure up 1027%; bright layover and shadow against flat ground is the radar signature of a vertical structure",
+     "evidence_id": "ev-a17bd6f25213ed24",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-62c8fddf6397",
+     "type": "new_structure",
+     "detected_on": "2026-07-31",
+     "area_m2": 2900.0,
+     "confidence": 0.927,
+     "severity": "high",
+     "explanation": "compact 2,900 m2 footprint with backscatter structure up 1380%; bright layover and shadow against flat ground is the radar signature of a vertical structure",
+     "evidence_id": "ev-c1b6cd83b8d9d6e8",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-2eee08ba9dc7",
+     "type": "new_structure",
+     "detected_on": "2026-08-06",
+     "area_m2": 2700.0,
+     "confidence": 0.91,
+     "severity": "high",
+     "explanation": "compact 2,700 m2 footprint brighter than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+     "evidence_id": "ev-18769927b31fef84",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-7ac37f437392",
+     "type": "new_structure",
+     "detected_on": "2026-08-18",
+     "area_m2": 2700.0,
+     "confidence": 0.886,
+     "severity": "high",
+     "explanation": "compact 2,700 m2 footprint darker than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+     "evidence_id": "ev-f2972ab44ac19107",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-bdfbeb53eb07",
+     "type": "new_structure",
+     "detected_on": "2026-08-06",
+     "area_m2": 1500.0,
+     "confidence": 0.699,
+     "severity": "medium",
+     "explanation": "compact 1,500 m2 footprint brighter than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+     "evidence_id": "ev-3add451400cde30b",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-5831cfe93d1d",
+     "type": "surface_change",
+     "detected_on": "2026-08-06",
+     "area_m2": 1200.0,
+     "confidence": 0.706,
+     "severity": "low",
+     "explanation": "1,200 m2 darker by 0.763 in backscatter (natural-log ratio); shape and texture do not support a more specific description",
+     "evidence_id": "ev-f2c1313c2704ddcb",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-aca83717186f",
+     "type": "surface_change",
+     "detected_on": "2026-08-18",
+     "area_m2": 900.0,
+     "confidence": 0.673,
+     "severity": "low",
+     "explanation": "900 m2 brighter by 0.729 in backscatter (natural-log ratio); shape and texture do not support a more specific description",
+     "evidence_id": "ev-aebf375d51d7e186",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-26431d784944",
+     "type": "surface_change",
+     "detected_on": "2026-07-07",
+     "area_m2": 900.0,
+     "confidence": 0.603,
+     "severity": "low",
+     "explanation": "900 m2 brighter by 0.644 in backscatter (natural-log ratio); shape and texture do not support a more specific description",
+     "evidence_id": "ev-15383af8ce366f24",
+     "review_status": "pending"
+    }
+   ],
+   "anomalies": [
+    {
+     "date": "2026-07-01",
+     "score": 0.0,
+     "confidence": 0.144,
+     "severity": "low",
+     "baseline_n": 0,
+     "reasons": []
+    },
+    {
+     "date": "2026-07-07",
+     "score": 30.0,
+     "confidence": 0.377,
+     "severity": "low",
+     "baseline_n": 1,
+     "reasons": [
+      "object departures is 3 against a median of 0 across all days (n=1, 3.0 robust deviations above)",
+      "baseline rests on 1 prior observation(s), below the 24 at which this site would be considered characterised; treat the comparison as provisional"
+     ]
+    },
+    {
+     "date": "2026-07-13",
+     "score": 0.0,
+     "confidence": 0.404,
+     "severity": "low",
+     "baseline_n": 2,
+     "reasons": []
+    },
+    {
+     "date": "2026-07-19",
+     "score": 0.0,
+     "confidence": 0.431,
+     "severity": "low",
+     "baseline_n": 3,
+     "reasons": []
+    },
+    {
+     "date": "2026-07-25",
+     "score": 0.0,
+     "confidence": 0.458,
+     "severity": "low",
+     "baseline_n": 4,
+     "reasons": []
+    },
+    {
+     "date": "2026-07-31",
+     "score": 23.2,
+     "confidence": 0.485,
+     "severity": "low",
+     "baseline_n": 5,
+     "reasons": [
+      "aircraft count is 1 against a median of 0 across all days (n=5, 1.0 robust deviations above)",
+      "object arrivals is 1 against a median of 0 across all days (n=5, 1.0 robust deviations above)",
+      "baseline rests on 5 prior observation(s), below the 24 at which this site would be considered characterised; treat the comparison as provisional"
+     ]
+    },
+    {
+     "date": "2026-08-06",
+     "score": 52.1,
+     "confidence": 0.512,
+     "severity": "medium",
+     "baseline_n": 6,
+     "reasons": [
+      "aircraft count has risen about 1 over the preceding 60 days (1.4 robust deviations across the window)",
+      "object arrivals has risen about 1 over the preceding 60 days (1.4 robust deviations across the window)",
+      "baseline rests on 6 prior observation(s), below the 24 at which this site would be considered characterised; treat the comparison as provisional"
+     ]
+    },
+    {
+     "date": "2026-08-12",
+     "score": 62.9,
+     "confidence": 0.54,
+     "severity": "medium",
+     "baseline_n": 7,
+     "reasons": [
+      "aircraft count has risen about 2 over the preceding 60 days (1.8 robust deviations across the window)",
+      "object arrivals has risen about 2 over the preceding 60 days (1.8 robust deviations across the window) \u2014 no single day in it stands out",
+      "baseline rests on 7 prior observation(s), below the 24 at which this site would be considered characterised; treat the comparison as provisional"
+     ]
+    },
+    {
+     "date": "2026-08-18",
+     "score": 62.9,
+     "confidence": 0.567,
+     "severity": "medium",
+     "baseline_n": 8,
+     "reasons": [
+      "aircraft count has risen about 2 over the preceding 60 days (1.8 robust deviations across the window) \u2014 no single day in it stands out",
+      "object arrivals has risen about 1 over the preceding 60 days (1.0 robust deviations across the window)",
+      "object departures is 2 against a median of 0 across all days (n=8, 2.0 robust deviations above)"
+     ]
+    }
+   ],
+   "chips": [
+    {
+     "change_id": "chg-a429d23bc49c",
+     "type": "linear_feature",
+     "severity": "high",
+     "confidence": 0.97,
+     "area_m2": 7100.0,
+     "detected_on": "2026-08-06",
+     "explanation": "linear feature 216 m long and about 33 m wide, darker than before; consistent with a new track, road or berm",
+     "evidence_id": "ev-f52cdb1ab6f7e2a7",
+     "before": "chips/chg-a429d23bc49c-before.png",
+     "after": "chips/chg-a429d23bc49c-after.png",
+     "mask": "chips/chg-a429d23bc49c-mask.png",
+     "detail_before": "chips/chg-a429d23bc49c-detail_before.png",
+     "detail_after": "chips/chg-a429d23bc49c-detail_after.png",
+     "detail_mask": "chips/chg-a429d23bc49c-detail_mask.png",
+     "before_scene": "sentinel-1:IN-KCH-SECTOR:2026-07-25",
+     "after_scene": "sentinel-1:IN-KCH-SECTOR:2026-08-06",
+     "before_on": "2026-07-25",
+     "after_on": "2026-08-06",
+     "constellation": "sentinel-1",
+     "sensor": "sar",
+     "gsd_m": 10.0,
+     "width": 500,
+     "height": 360,
+     "detail_cells": [
+      63,
+      83
+     ],
+     "registration_shift": [
+      0,
+      0
+     ],
+     "noise_floor": 0.1077,
+     "obscured_fraction": 0.0
+    },
+    {
+     "change_id": "chg-9b6456ec10ae",
+     "type": "new_structure",
+     "severity": "high",
+     "confidence": 0.935,
+     "area_m2": 3300.0,
+     "detected_on": "2026-08-18",
+     "explanation": "compact 3,300 m2 footprint with backscatter structure up 767%; bright layover and shadow against flat ground is the radar signature of a vertical structure",
+     "evidence_id": "ev-fcad958dffc5398a",
+     "before": "chips/chg-9b6456ec10ae-before.png",
+     "after": "chips/chg-9b6456ec10ae-after.png",
+     "mask": "chips/chg-9b6456ec10ae-mask.png",
+     "detail_before": "chips/chg-9b6456ec10ae-detail_before.png",
+     "detail_after": "chips/chg-9b6456ec10ae-detail_after.png",
+     "detail_mask": "chips/chg-9b6456ec10ae-detail_mask.png",
+     "before_scene": "sentinel-1:IN-KCH-SECTOR:2026-08-06",
+     "after_scene": "sentinel-1:IN-KCH-SECTOR:2026-08-18",
+     "before_on": "2026-08-06",
+     "after_on": "2026-08-18",
+     "constellation": "sentinel-1",
+     "sensor": "sar",
+     "gsd_m": 10.0,
+     "width": 500,
+     "height": 360,
+     "detail_cells": [
+      67,
+      66
+     ],
+     "registration_shift": [
+      0,
+      0
+     ],
+     "noise_floor": 0.10662,
+     "obscured_fraction": 0.0
+    }
+   ]
+  },
+  {
+   "id": "IN-SSD-DAM",
+   "name": "Sardar Sarovar \u2014 reservoir head",
+   "kind": "dam",
+   "country": "IN",
+   "description": "Dam structure, spillway and upstream reservoir extent.",
+   "area_km2": 14.1,
+   "centroid": [
+    73.748,
+    21.831
+   ],
+   "bbox": [
+    73.72669,
+    21.81661,
+    73.76931,
+    21.84539
+   ],
+   "fingerprint": "fd1ec7ed4ee7f973",
+   "headline": "A seasonal drawdown and refill, measured as area",
+   "monitored_from": "2026-02-13",
+   "monitored_to": "2026-05-09",
+   "status": "watch",
+   "status_window_days": 21,
+   "peak_anomaly_score": 48.4,
+   "recent_anomaly_score": 48.4,
+   "recent_alert_count": 7,
+   "coverage": {
+    "aoi_id": "IN-SSD-DAM",
+    "start": "2026-02-13",
+    "end": "2026-05-09",
+    "acquired": 38,
+    "usable": 32,
+    "usable_fraction": 0.842,
+    "by_constellation": {
+     "sentinel-1": 15,
+     "sentinel-2": 14,
+     "landsat-9": 3
+    },
+    "longest_gap_days": 6,
+    "last_usable": "2026-05-09",
+    "rejected_reasons": {
+     "cloud": 6
+    }
+   },
+   "coverage_by_month": [
+    {
+     "month": "2026-02",
+     "usable": 7,
+     "cloudy": 1,
+     "sar": 3,
+     "optical": 4
+    },
+    {
+     "month": "2026-03",
+     "usable": 10,
+     "cloudy": 3,
+     "sar": 5,
+     "optical": 5
+    },
+    {
+     "month": "2026-04",
+     "usable": 10,
+     "cloudy": 2,
+     "sar": 5,
+     "optical": 5
+    },
+    {
+     "month": "2026-05",
+     "usable": 5,
+     "cloudy": 0,
+     "sar": 2,
+     "optical": 3
+    }
+   ],
+   "change_count": 88,
+   "alert_count": 10,
+   "changes": [
+    {
+     "id": "chg-71457604314d",
+     "type": "surface_change",
+     "detected_on": "2026-04-08",
+     "area_m2": 1831600.0,
+     "confidence": 0.97,
+     "severity": "medium",
+     "explanation": "183.2 ha of previously open water now returns a land signature (0.28); consistent with a falling water level or exposed bank",
+     "evidence_id": "ev-a902b3466cfd7a63",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-298357b60326",
+     "type": "surface_change",
+     "detected_on": "2026-04-14",
+     "area_m2": 620700.0,
+     "confidence": 0.97,
+     "severity": "medium",
+     "explanation": "62.1 ha of previously open water now returns a land signature (0.39); consistent with a falling water level or exposed bank",
+     "evidence_id": "ev-36f032a1669649e7",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-a5df0b3120c7",
+     "type": "surface_change",
+     "detected_on": "2026-05-01",
+     "area_m2": 322200.0,
+     "confidence": 0.97,
+     "severity": "medium",
+     "explanation": "32.2 ha of previously open water now returns a land signature (0.40); consistent with a falling water level or exposed bank",
+     "evidence_id": "ev-8e25955d4a247ffc",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-0db6fd1c047b",
+     "type": "surface_change",
+     "detected_on": "2026-05-01",
+     "area_m2": 151200.0,
+     "confidence": 0.97,
+     "severity": "medium",
+     "explanation": "15.1 ha of previously open water now returns a land signature (0.40); consistent with a falling water level or exposed bank",
+     "evidence_id": "ev-260611b5f98ef7ff",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-3ec8aef61b04",
+     "type": "new_structure",
+     "detected_on": "2026-05-01",
+     "area_m2": 21600.0,
+     "confidence": 0.97,
+     "severity": "medium",
+     "explanation": "compact 21,600 m2 footprint darker than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+     "evidence_id": "ev-39218c7c26473c23",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-667a8f4d8bc6",
+     "type": "new_structure",
+     "detected_on": "2026-04-14",
+     "area_m2": 8300.0,
+     "confidence": 0.97,
+     "severity": "medium",
+     "explanation": "compact 8,300 m2 footprint darker than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+     "evidence_id": "ev-d037a49bee70b7aa",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-bfc8245d7a2e",
+     "type": "new_structure",
+     "detected_on": "2026-05-01",
+     "area_m2": 10800.0,
+     "confidence": 0.961,
+     "severity": "medium",
+     "explanation": "compact 10,800 m2 footprint, darker than before, with local variation down 37% -- a uniform engineered surface has replaced a varied natural one",
+     "evidence_id": "ev-595eaed51dccb8e3",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-a1d8ef657e87",
+     "type": "new_structure",
+     "detected_on": "2026-04-04",
+     "area_m2": 1800.0,
+     "confidence": 0.9,
+     "severity": "medium",
+     "explanation": "compact 1,800 m2 footprint darker than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+     "evidence_id": "ev-8d667b8043d3fd0f",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-fa9d793c46cc",
+     "type": "new_structure",
+     "detected_on": "2026-04-29",
+     "area_m2": 1500.0,
+     "confidence": 0.87,
+     "severity": "medium",
+     "explanation": "compact 1,500 m2 footprint brighter than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+     "evidence_id": "ev-28fd28f7d6d728ee",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-79366510a977",
+     "type": "new_structure",
+     "detected_on": "2026-05-09",
+     "area_m2": 2100.0,
+     "confidence": 0.861,
+     "severity": "medium",
+     "explanation": "compact 2,100 m2 footprint brighter than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+     "evidence_id": "ev-7db8d079b5be8fe0",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-3a82fc8f6944",
+     "type": "new_structure",
+     "detected_on": "2026-05-04",
+     "area_m2": 3000.0,
+     "confidence": 0.826,
+     "severity": "medium",
+     "explanation": "compact 3,000 m2 footprint brighter than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+     "evidence_id": "ev-17a4afd81a088c76",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-8c888f6cbefe",
+     "type": "new_structure",
+     "detected_on": "2026-05-04",
+     "area_m2": 2100.0,
+     "confidence": 0.821,
+     "severity": "medium",
+     "explanation": "compact 2,100 m2 footprint brighter than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+     "evidence_id": "ev-685749c29362740e",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-ab6bcde9fa31",
+     "type": "new_structure",
+     "detected_on": "2026-05-09",
+     "area_m2": 1800.0,
+     "confidence": 0.807,
+     "severity": "medium",
+     "explanation": "compact 1,800 m2 footprint brighter than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+     "evidence_id": "ev-32c6bed4584c7ef1",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-1b3e20ddecb7",
+     "type": "new_structure",
+     "detected_on": "2026-05-09",
+     "area_m2": 1800.0,
+     "confidence": 0.779,
+     "severity": "medium",
+     "explanation": "compact 1,800 m2 footprint brighter than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+     "evidence_id": "ev-4ba264fee0a769bc",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-679527a61580",
+     "type": "new_structure",
+     "detected_on": "2026-04-24",
+     "area_m2": 3000.0,
+     "confidence": 0.624,
+     "severity": "medium",
+     "explanation": "compact 3,000 m2 footprint brighter than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+     "evidence_id": "ev-0f54717d18d8d118",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-8cbcda395398",
+     "type": "surface_change",
+     "detected_on": "2026-05-08",
+     "area_m2": 900.0,
+     "confidence": 0.871,
+     "severity": "low",
+     "explanation": "900 m2 brighter by 1.049 in backscatter (natural-log ratio); shape and texture do not support a more specific description",
+     "evidence_id": "ev-495152b23eb8e2df",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-85891853940e",
+     "type": "surface_change",
+     "detected_on": "2026-04-02",
+     "area_m2": 900.0,
+     "confidence": 0.859,
+     "severity": "low",
+     "explanation": "900 m2 brighter by 1.026 in backscatter (natural-log ratio); shape and texture do not support a more specific description",
+     "evidence_id": "ev-2e1ba1f0c3b65096",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-cc48e9c4f04d",
+     "type": "surface_change",
+     "detected_on": "2026-04-29",
+     "area_m2": 900.0,
+     "confidence": 0.807,
+     "severity": "low",
+     "explanation": "900 m2 brighter by 0.096 in reflectance; shape and texture do not support a more specific description",
+     "evidence_id": "ev-80a4d2344dd02afd",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-8e3bc755d590",
+     "type": "surface_change",
+     "detected_on": "2026-05-09",
+     "area_m2": 1200.0,
+     "confidence": 0.783,
+     "severity": "low",
+     "explanation": "1,200 m2 brighter by 0.093 in reflectance; shape and texture do not support a more specific description",
+     "evidence_id": "ev-2b2cbf8c6eade437",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-ba204e834b09",
+     "type": "surface_change",
+     "detected_on": "2026-05-09",
+     "area_m2": 1200.0,
+     "confidence": 0.773,
+     "severity": "low",
+     "explanation": "1,200 m2 brighter by 0.092 in reflectance; shape and texture do not support a more specific description",
+     "evidence_id": "ev-2eb2f1d9075df0e8",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-1cfa62472233",
+     "type": "surface_change",
+     "detected_on": "2026-05-09",
+     "area_m2": 1200.0,
+     "confidence": 0.763,
+     "severity": "low",
+     "explanation": "1,200 m2 brighter by 0.090 in reflectance; shape and texture do not support a more specific description",
+     "evidence_id": "ev-fd8ef420192bf410",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-c518622a1adc",
+     "type": "surface_change",
+     "detected_on": "2026-04-24",
+     "area_m2": 3900.0,
+     "confidence": 0.75,
+     "severity": "low",
+     "explanation": "3,900 m2 brighter by 0.082 in reflectance; shape and texture do not support a more specific description",
+     "evidence_id": "ev-61cad202f3064933",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-81c932ab5a0a",
+     "type": "surface_change",
+     "detected_on": "2026-04-04",
+     "area_m2": 900.0,
+     "confidence": 0.749,
+     "severity": "low",
+     "explanation": "900 m2 darker by 0.089 in reflectance; shape and texture do not support a more specific description",
+     "evidence_id": "ev-fb52fadb248e0f5d",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-f370239189ad",
+     "type": "surface_change",
+     "detected_on": "2026-04-29",
+     "area_m2": 1200.0,
+     "confidence": 0.725,
+     "severity": "low",
+     "explanation": "1,200 m2 brighter by 0.084 in reflectance; shape and texture do not support a more specific description",
+     "evidence_id": "ev-9f7bfafe13009946",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-d3f5b2437051",
+     "type": "surface_change",
+     "detected_on": "2026-05-09",
+     "area_m2": 3900.0,
+     "confidence": 0.675,
+     "severity": "low",
+     "explanation": "3,900 m2 brighter by 0.071 in reflectance; shape and texture do not support a more specific description",
+     "evidence_id": "ev-da9003b40dde91ef",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-ae8e63e2de0b",
+     "type": "surface_change",
+     "detected_on": "2026-05-09",
+     "area_m2": 900.0,
+     "confidence": 0.675,
+     "severity": "low",
+     "explanation": "900 m2 brighter by 0.080 in reflectance; shape and texture do not support a more specific description",
+     "evidence_id": "ev-d73adfd88afc5615",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-eaba94883454",
+     "type": "surface_change",
+     "detected_on": "2026-05-09",
+     "area_m2": 1200.0,
+     "confidence": 0.665,
+     "severity": "low",
+     "explanation": "1,200 m2 brighter by 0.078 in reflectance; shape and texture do not support a more specific description",
+     "evidence_id": "ev-16af49e8a529b09f",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-95b05ac9cab1",
+     "type": "surface_change",
+     "detected_on": "2026-05-09",
+     "area_m2": 1200.0,
+     "confidence": 0.663,
+     "severity": "low",
+     "explanation": "1,200 m2 brighter by 0.077 in reflectance; shape and texture do not support a more specific description",
+     "evidence_id": "ev-713f70a900ceeafa",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-79aac8e7b431",
+     "type": "surface_change",
+     "detected_on": "2026-05-09",
+     "area_m2": 1200.0,
+     "confidence": 0.659,
+     "severity": "low",
+     "explanation": "1,200 m2 brighter by 0.077 in reflectance; shape and texture do not support a more specific description",
+     "evidence_id": "ev-a80a8f027c38af38",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-e53c54a46990",
+     "type": "surface_change",
+     "detected_on": "2026-05-09",
+     "area_m2": 900.0,
+     "confidence": 0.655,
+     "severity": "low",
+     "explanation": "900 m2 brighter by 0.078 in reflectance; shape and texture do not support a more specific description",
+     "evidence_id": "ev-cd55094fe2ce880d",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-01704ac7ec75",
+     "type": "surface_change",
+     "detected_on": "2026-04-24",
+     "area_m2": 900.0,
+     "confidence": 0.651,
+     "severity": "low",
+     "explanation": "900 m2 brighter by 0.079 in reflectance; shape and texture do not support a more specific description",
+     "evidence_id": "ev-98f1e4d78aa13724",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-ece64b6a9eb2",
+     "type": "new_structure",
+     "detected_on": "2026-05-09",
+     "area_m2": 2400.0,
+     "confidence": 0.639,
+     "severity": "low",
+     "explanation": "compact 2,400 m2 footprint brighter than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+     "evidence_id": "ev-41b60a8cd8dee538",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-e42badc565d2",
+     "type": "new_structure",
+     "detected_on": "2026-04-24",
+     "area_m2": 1500.0,
+     "confidence": 0.638,
+     "severity": "low",
+     "explanation": "compact 1,500 m2 footprint brighter than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+     "evidence_id": "ev-ea618fdab28d6572",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-f72cefd7bec5",
+     "type": "new_structure",
+     "detected_on": "2026-04-24",
+     "area_m2": 2100.0,
+     "confidence": 0.637,
+     "severity": "low",
+     "explanation": "compact 2,100 m2 footprint darker than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+     "evidence_id": "ev-c67a85248acff106",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-3f2ca6318843",
+     "type": "surface_change",
+     "detected_on": "2026-04-24",
+     "area_m2": 900.0,
+     "confidence": 0.633,
+     "severity": "low",
+     "explanation": "900 m2 brighter by 0.076 in reflectance; shape and texture do not support a more specific description",
+     "evidence_id": "ev-98434b90e3849dd3",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-55a9ff660f17",
+     "type": "new_structure",
+     "detected_on": "2026-03-25",
+     "area_m2": 1800.0,
+     "confidence": 0.631,
+     "severity": "low",
+     "explanation": "compact 1,800 m2 footprint brighter than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+     "evidence_id": "ev-2b67fb7edb85707c",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-d2965acef465",
+     "type": "new_structure",
+     "detected_on": "2026-05-09",
+     "area_m2": 1800.0,
+     "confidence": 0.63,
+     "severity": "low",
+     "explanation": "compact 1,800 m2 footprint brighter than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+     "evidence_id": "ev-b57c00aac1a43cbb",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-19ce070f585e",
+     "type": "new_structure",
+     "detected_on": "2026-04-24",
+     "area_m2": 2100.0,
+     "confidence": 0.627,
+     "severity": "low",
+     "explanation": "compact 2,100 m2 footprint darker than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+     "evidence_id": "ev-f9eab1ada12a07ee",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-fb885573d772",
+     "type": "new_structure",
+     "detected_on": "2026-05-09",
+     "area_m2": 2400.0,
+     "confidence": 0.626,
+     "severity": "low",
+     "explanation": "compact 2,400 m2 footprint brighter than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+     "evidence_id": "ev-2ba8b9e69d215a2b",
+     "review_status": "pending"
+    },
+    {
+     "id": "chg-41ccf71cdb6a",
+     "type": "new_structure",
+     "detected_on": "2026-05-09",
+     "area_m2": 1500.0,
+     "confidence": 0.625,
+     "severity": "low",
+     "explanation": "compact 1,500 m2 footprint darker than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+     "evidence_id": "ev-7a603f4eb87c67b6",
+     "review_status": "pending"
+    }
+   ],
+   "anomalies": [
+    {
+     "date": "2026-03-25",
+     "score": 0.0,
+     "confidence": 0.144,
+     "severity": "low",
+     "baseline_n": 0,
+     "reasons": []
+    },
+    {
+     "date": "2026-03-27",
+     "score": 0.0,
+     "confidence": 0.377,
+     "severity": "low",
+     "baseline_n": 1,
+     "reasons": []
+    },
+    {
+     "date": "2026-03-30",
+     "score": 0.0,
+     "confidence": 0.349,
+     "severity": "low",
+     "baseline_n": 2,
+     "reasons": []
+    },
+    {
+     "date": "2026-04-02",
+     "score": 0.0,
+     "confidence": 0.431,
+     "severity": "low",
+     "baseline_n": 3,
+     "reasons": []
+    },
+    {
+     "date": "2026-04-04",
+     "score": 25.5,
+     "confidence": 0.43,
+     "severity": "low",
+     "baseline_n": 4,
+     "reasons": [
+      "object arrivals is 1 against a median of 0 across all days (n=4, 1.0 robust deviations above)",
+      "object departures is 2 against a median of 0 across all days (n=4, 2.0 robust deviations above)",
+      "baseline rests on 4 prior observation(s), below the 24 at which this site would be considered characterised; treat the comparison as provisional"
+     ]
+    },
+    {
+     "date": "2026-04-08",
+     "score": 34.0,
+     "confidence": 0.485,
+     "severity": "low",
+     "baseline_n": 5,
+     "reasons": [
+      "object departures has risen about 4 over the preceding 60 days (4.4 robust deviations across the window) \u2014 no single day in it stands out",
+      "baseline rests on 5 prior observation(s), below the 24 at which this site would be considered characterised; treat the comparison as provisional"
+     ]
+    },
+    {
+     "date": "2026-04-14",
+     "score": 14.3,
+     "confidence": 0.439,
+     "severity": "low",
+     "baseline_n": 6,
+     "reasons": [
+      "object arrivals is 1 against a median of 0 across all days (n=6, 1.0 robust deviations above)",
+      "object departures has risen about 0 over the preceding 60 days (0.2 robust deviations across the window) \u2014 no single day in it stands out",
+      "baseline rests on 6 prior observation(s), below the 24 at which this site would be considered characterised; treat the comparison as provisional"
+     ]
+    },
+    {
+     "date": "2026-04-19",
+     "score": 20.6,
+     "confidence": 0.49,
+     "severity": "low",
+     "baseline_n": 7,
+     "reasons": [
+      "object arrivals has risen about 1 over the preceding 60 days (1.0 robust deviations across the window) \u2014 no single day in it stands out",
+      "baseline rests on 7 prior observation(s), below the 24 at which this site would be considered characterised; treat the comparison as provisional"
+     ]
+    },
+    {
+     "date": "2026-04-20",
+     "score": 40.0,
+     "confidence": 0.567,
+     "severity": "medium",
+     "baseline_n": 8,
+     "reasons": [
+      "container stack count is 6 against a median of 0 across all days (n=8, 6.0 robust deviations above)",
+      "baseline rests on 8 prior observation(s), below the 24 at which this site would be considered characterised; treat the comparison as provisional"
+     ]
+    },
+    {
+     "date": "2026-04-24",
+     "score": 38.5,
+     "confidence": 0.542,
+     "severity": "low",
+     "baseline_n": 9,
+     "reasons": [
+      "container stack count has risen about 7 over the preceding 60 days (6.7 robust deviations across the window) \u2014 no single day in it stands out",
+      "object arrivals is 1 against a median of 0 across all days (n=9, 1.0 robust deviations above)",
+      "baseline rests on 9 prior observation(s), below the 24 at which this site would be considered characterised; treat the comparison as provisional"
+     ]
+    },
+    {
+     "date": "2026-04-26",
+     "score": 41.1,
+     "confidence": 0.621,
+     "severity": "medium",
+     "baseline_n": 10,
+     "reasons": [
+      "container stack count has risen about 4 over the preceding 60 days (4.2 robust deviations across the window) \u2014 no single day in it stands out",
+      "object arrivals has risen about 0 over the preceding 60 days (0.2 robust deviations across the window) \u2014 no single day in it stands out",
+      "vessel count is 1 against a median of 0 across all days (n=10, 1.0 robust deviations above)"
+     ]
+    },
+    {
+     "date": "2026-04-29",
+     "score": 44.1,
+     "confidence": 0.648,
+     "severity": "medium",
+     "baseline_n": 11,
+     "reasons": [
+      "container stack count has risen about 3 over the preceding 60 days (2.8 robust deviations across the window) \u2014 no single day in it stands out",
+      "object departures is 1 against a median of 0 across all days (n=11, 1.0 robust deviations above)",
+      "vessel count has risen about 1 over the preceding 60 days (0.7 robust deviations across the window) \u2014 no single day in it stands out"
+     ]
+    },
+    {
+     "date": "2026-05-01",
+     "score": 13.5,
+     "confidence": 0.604,
+     "severity": "low",
+     "baseline_n": 12,
+     "reasons": [
+      "vessel count has risen about 1 over the preceding 60 days (0.5 robust deviations across the window) \u2014 no single day in it stands out",
+      "baseline rests on 12 prior observation(s), below the 24 at which this site would be considered characterised; treat the comparison as provisional"
+     ]
+    },
+    {
+     "date": "2026-05-02",
+     "score": 45.0,
+     "confidence": 0.702,
+     "severity": "medium",
+     "baseline_n": 13,
+     "reasons": [
+      "container stack count is 5 against a median of 0 across all days (n=13, 5.0 robust deviations above)",
+      "It has also risen about 1 over the preceding 60 days (1.3 robust deviations across the window).",
+      "vessel count is 1 against a median of 0 across all days (n=13, 1.0 robust deviations above)"
+     ]
+    },
+    {
+     "date": "2026-05-04",
+     "score": 45.0,
+     "confidence": 0.658,
+     "severity": "medium",
+     "baseline_n": 14,
+     "reasons": [
+      "container stack count has risen about 3 over the preceding 60 days (3.1 robust deviations across the window) \u2014 no single day in it stands out",
+      "object arrivals is 1 against a median of 0 across all days (n=14, 1.0 robust deviations above)",
+      "vessel count has risen about 1 over the preceding 60 days (0.8 robust deviations across the window) \u2014 no single day in it stands out"
+     ]
+    },
+    {
+     "date": "2026-05-08",
+     "score": 39.5,
+     "confidence": 0.756,
+     "severity": "low",
+     "baseline_n": 15,
+     "reasons": [
+      "container stack count has risen about 2 over the preceding 60 days (2.4 robust deviations across the window)",
+      "vessel count has risen about 1 over the preceding 60 days (0.6 robust deviations across the window) \u2014 no single day in it stands out",
+      "baseline rests on 15 prior observation(s), below the 24 at which this site would be considered characterised; treat the comparison as provisional"
+     ]
+    },
+    {
+     "date": "2026-05-09",
+     "score": 48.4,
+     "confidence": 0.783,
+     "severity": "medium",
+     "baseline_n": 16,
+     "reasons": [
+      "container stack count has risen about 2 over the preceding 60 days (2.2 robust deviations across the window) \u2014 no single day in it stands out",
+      "object departures is 3 against a median of 0 across all days (n=16, 3.0 robust deviations above)",
+      "vessel count has risen about 0 over the preceding 60 days (0.5 robust deviations across the window) \u2014 no single day in it stands out"
+     ]
+    }
+   ],
+   "chips": [
+    {
+     "change_id": "chg-71457604314d",
+     "type": "surface_change",
+     "severity": "medium",
+     "confidence": 0.97,
+     "area_m2": 1831600.0,
+     "detected_on": "2026-04-08",
+     "explanation": "183.2 ha of previously open water now returns a land signature (0.28); consistent with a falling water level or exposed bank",
+     "evidence_id": "ev-a902b3466cfd7a63",
+     "before": "chips/chg-71457604314d-before.png",
+     "after": "chips/chg-71457604314d-after.png",
+     "mask": "chips/chg-71457604314d-mask.png",
+     "detail_before": "chips/chg-71457604314d-detail_before.png",
+     "detail_after": "chips/chg-71457604314d-detail_after.png",
+     "detail_mask": "chips/chg-71457604314d-detail_mask.png",
+     "before_scene": "sentinel-1:IN-SSD-DAM:2026-03-27",
+     "after_scene": "sentinel-1:IN-SSD-DAM:2026-04-08",
+     "before_on": "2026-03-27",
+     "after_on": "2026-04-08",
+     "constellation": "sentinel-1",
+     "sensor": "sar",
+     "gsd_m": 10.0,
+     "width": 440,
+     "height": 320,
+     "detail_cells": [
+      683,
+      189
+     ],
+     "registration_shift": [
+      0,
+      0
+     ],
+     "noise_floor": 0.16258,
+     "obscured_fraction": 0.0
+    },
+    {
+     "change_id": "chg-298357b60326",
+     "type": "surface_change",
+     "severity": "medium",
+     "confidence": 0.97,
+     "area_m2": 620700.0,
+     "detected_on": "2026-04-14",
+     "explanation": "62.1 ha of previously open water now returns a land signature (0.39); consistent with a falling water level or exposed bank",
+     "evidence_id": "ev-36f032a1669649e7",
+     "before": "chips/chg-298357b60326-before.png",
+     "after": "chips/chg-298357b60326-after.png",
+     "mask": "chips/chg-298357b60326-mask.png",
+     "detail_before": "chips/chg-298357b60326-detail_before.png",
+     "detail_after": "chips/chg-298357b60326-detail_after.png",
+     "detail_mask": "chips/chg-298357b60326-detail_mask.png",
+     "before_scene": "sentinel-2:IN-SSD-DAM:2026-04-04",
+     "after_scene": "sentinel-2:IN-SSD-DAM:2026-04-14",
+     "before_on": "2026-04-04",
+     "after_on": "2026-04-14",
+     "constellation": "sentinel-2",
+     "sensor": "optical",
+     "gsd_m": 10.0,
+     "width": 440,
+     "height": 320,
+     "detail_cells": [
+      576,
+      124
+     ],
+     "registration_shift": [
+      -2,
+      3
+     ],
+     "noise_floor": 0.02014,
+     "obscured_fraction": 0.4407
+    }
+   ]
+  }
+ ],
+ "queue": [
+  {
+   "id": "alert-4c6ffac22d46",
+   "aoi_id": "IN-MUN-PORT",
+   "title": "Activity deviation from baseline",
+   "severity": "high",
+   "priority": 1,
+   "created_at": "2026-05-20T06:00:00+00:00",
+   "summary": "Significant deviation from the site's historical baseline, driven by container stack count (score 66/100, confidence 68%)",
+   "evidence_id": "ev-e711d16bbf02ee34",
+   "rule": "Activity well outside the site's historical envelope",
+   "rule_text": "IF finding kind is anomaly AND anomaly score is at least 65 AND confidence is at least 0.5 AND baseline n is at least 12 (scope: every monitored area) THEN alert via dashboard",
+   "matched_rules": [
+    "Activity well outside the site's historical envelope"
+   ],
+   "risk": {},
+   "held": "",
+   "review_status": "pending"
+  },
+  {
+   "id": "alert-19f42d1789c3",
+   "aoi_id": "IN-MUN-PORT",
+   "title": "Activity deviation from baseline",
+   "severity": "high",
+   "priority": 1,
+   "created_at": "2026-05-26T06:00:00+00:00",
+   "summary": "Significant deviation from the site's historical baseline, driven by vessel count (score 70/100, confidence 70%)",
+   "evidence_id": "ev-850749406ac8828e",
+   "rule": "Activity well outside the site's historical envelope",
+   "rule_text": "IF finding kind is anomaly AND anomaly score is at least 65 AND confidence is at least 0.5 AND baseline n is at least 12 (scope: every monitored area) THEN alert via dashboard",
+   "matched_rules": [
+    "Activity well outside the site's historical envelope"
+   ],
+   "risk": {},
+   "held": "",
+   "review_status": "pending"
+  },
+  {
+   "id": "alert-e963fba52d4a",
+   "aoi_id": "IN-BHD-SOLAR",
+   "title": "New structure \u2014 247,600 m2",
+   "severity": "high",
+   "priority": 2,
+   "created_at": "2026-03-20T10:30:00+00:00",
+   "summary": "compact 247,600 m2 footprint darker than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+   "evidence_id": "ev-680e1af54bb02652",
+   "rule": "New structure at a monitored site",
+   "rule_text": "IF finding kind is change AND change type is one of ['new_structure', 'structure_removed'] AND confidence is at least 0.6 AND area m2 is at least 1500 (scope: every monitored area) THEN alert via dashboard, email",
+   "matched_rules": [
+    "New structure at a monitored site"
+   ],
+   "risk": {
+    "severity": "high",
+    "confidence": 0.97,
+    "novelty": 1.0,
+    "persistence": 0.0,
+    "spatial": 0.01842,
+    "looks": 1,
+    "composite": 72.6
+   },
+   "held": "",
+   "review_status": "pending"
+  },
+  {
+   "id": "alert-3925e52ae92e",
+   "aoi_id": "IN-BHD-SOLAR",
+   "title": "New structure \u2014 200,700 m2",
+   "severity": "high",
+   "priority": 2,
+   "created_at": "2026-03-30T10:00:00+00:00",
+   "summary": "compact 200,700 m2 footprint darker than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+   "evidence_id": "ev-b51c973af15d5f61",
+   "rule": "New structure at a monitored site",
+   "rule_text": "IF finding kind is change AND change type is one of ['new_structure', 'structure_removed'] AND confidence is at least 0.6 AND area m2 is at least 1500 (scope: every monitored area) THEN alert via dashboard, email",
+   "matched_rules": [
+    "New structure at a monitored site"
+   ],
+   "risk": {
+    "severity": "high",
+    "confidence": 0.97,
+    "novelty": 0.0,
+    "persistence": 0.25,
+    "spatial": 0.01493,
+    "looks": 5,
+    "composite": 61.9
+   },
+   "held": "",
+   "review_status": "pending"
+  },
+  {
+   "id": "alert-c2db0237135b",
+   "aoi_id": "IN-KCH-SECTOR",
+   "title": "Linear feature \u2014 7,100 m2",
+   "severity": "high",
+   "priority": 2,
+   "created_at": "2026-08-06T06:00:00+00:00",
+   "summary": "linear feature 216 m long and about 33 m wide, darker than before; consistent with a new track, road or berm",
+   "evidence_id": "ev-f52cdb1ab6f7e2a7",
+   "rule": "Construction or new track in a remote sector",
+   "rule_text": "IF finding kind is change AND change type is one of ['construction_activity', 'linear_feature', 'new_structure'] AND confidence is at least 0.55 (scope: border_sector) THEN alert via dashboard, webhook",
+   "matched_rules": [
+    "Construction or new track in a remote sector"
+   ],
+   "risk": {
+    "severity": "high",
+    "confidence": 0.97,
+    "novelty": 1.0,
+    "persistence": 0.0,
+    "spatial": 0.00039,
+    "looks": 3,
+    "composite": 72.5
+   },
+   "held": "",
+   "review_status": "pending"
+  },
+  {
+   "id": "alert-1e94d8f01e54",
+   "aoi_id": "IN-KCH-SECTOR",
+   "title": "New structure \u2014 3,300 m2",
+   "severity": "high",
+   "priority": 2,
+   "created_at": "2026-08-06T06:00:00+00:00",
+   "summary": "compact 3,300 m2 footprint with backscatter structure up 1549%; bright layover and shadow against flat ground is the radar signature of a vertical structure",
+   "evidence_id": "ev-77cb5f91f95a57c4",
+   "rule": "Construction or new track in a remote sector",
+   "rule_text": "IF finding kind is change AND change type is one of ['construction_activity', 'linear_feature', 'new_structure'] AND confidence is at least 0.55 (scope: border_sector) THEN alert via dashboard, webhook",
+   "matched_rules": [
+    "Construction or new track in a remote sector",
+    "New structure at a monitored site"
+   ],
+   "risk": {
+    "severity": "high",
+    "confidence": 0.935,
+    "novelty": 0.0,
+    "persistence": 0.5,
+    "spatial": 0.00018,
+    "looks": 3,
+    "composite": 63.3
+   },
+   "held": "",
+   "review_status": "pending"
+  },
+  {
+   "id": "alert-ccd25fc9ace3",
+   "aoi_id": "IN-KCH-SECTOR",
+   "title": "New structure \u2014 3,200 m2",
+   "severity": "high",
+   "priority": 2,
+   "created_at": "2026-08-12T06:00:00+00:00",
+   "summary": "compact 3,200 m2 footprint with backscatter structure up 1027%; bright layover and shadow against flat ground is the radar signature of a vertical structure",
+   "evidence_id": "ev-a17bd6f25213ed24",
+   "rule": "Construction or new track in a remote sector",
+   "rule_text": "IF finding kind is change AND change type is one of ['construction_activity', 'linear_feature', 'new_structure'] AND confidence is at least 0.55 (scope: border_sector) THEN alert via dashboard, webhook",
+   "matched_rules": [
+    "Construction or new track in a remote sector",
+    "New structure at a monitored site"
+   ],
+   "risk": {
+    "severity": "high",
+    "confidence": 0.933,
+    "novelty": 0.0,
+    "persistence": 0.667,
+    "spatial": 0.00018,
+    "looks": 4,
+    "composite": 65.0
+   },
+   "held": "",
+   "review_status": "pending"
+  },
+  {
+   "id": "alert-a024d69134a6",
+   "aoi_id": "IN-KCH-SECTOR",
+   "title": "New structure \u2014 3,300 m2",
+   "severity": "high",
+   "priority": 2,
+   "created_at": "2026-08-18T06:00:00+00:00",
+   "summary": "compact 3,300 m2 footprint with backscatter structure up 767%; bright layover and shadow against flat ground is the radar signature of a vertical structure",
+   "evidence_id": "ev-fcad958dffc5398a",
+   "rule": "Construction or new track in a remote sector",
+   "rule_text": "IF finding kind is change AND change type is one of ['construction_activity', 'linear_feature', 'new_structure'] AND confidence is at least 0.55 (scope: border_sector) THEN alert via dashboard, webhook",
+   "matched_rules": [
+    "Construction or new track in a remote sector",
+    "New structure at a monitored site"
+   ],
+   "risk": {
+    "severity": "high",
+    "confidence": 0.935,
+    "novelty": 0.0,
+    "persistence": 0.75,
+    "spatial": 0.00018,
+    "looks": 5,
+    "composite": 65.9
+   },
+   "held": "",
+   "review_status": "pending"
+  },
+  {
+   "id": "alert-6380643f9576",
+   "aoi_id": "IN-KCH-SECTOR",
+   "title": "New structure \u2014 2,700 m2",
+   "severity": "high",
+   "priority": 2,
+   "created_at": "2026-08-18T06:00:00+00:00",
+   "summary": "compact 2,700 m2 footprint darker than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+   "evidence_id": "ev-f2972ab44ac19107",
+   "rule": "Construction or new track in a remote sector",
+   "rule_text": "IF finding kind is change AND change type is one of ['construction_activity', 'linear_feature', 'new_structure'] AND confidence is at least 0.55 (scope: border_sector) THEN alert via dashboard, webhook",
+   "matched_rules": [
+    "Construction or new track in a remote sector",
+    "New structure at a monitored site"
+   ],
+   "risk": {
+    "severity": "high",
+    "confidence": 0.886,
+    "novelty": 0.0,
+    "persistence": 0.25,
+    "spatial": 0.00015,
+    "looks": 5,
+    "composite": 59.4
+   },
+   "held": "",
+   "review_status": "pending"
+  },
+  {
+   "id": "alert-0c1c11ae68dc",
+   "aoi_id": "IN-SSD-DAM",
+   "title": "New structure \u2014 1,800 m2",
+   "severity": "medium",
+   "priority": 3,
+   "created_at": "2026-04-04T10:30:00+00:00",
+   "summary": "compact 1,800 m2 footprint darker than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+   "evidence_id": "ev-8d667b8043d3fd0f",
+   "rule": "New structure at a monitored site",
+   "rule_text": "IF finding kind is change AND change type is one of ['new_structure', 'structure_removed'] AND confidence is at least 0.6 AND area m2 is at least 1500 (scope: every monitored area) THEN alert via dashboard, email",
+   "matched_rules": [
+    "New structure at a monitored site"
+   ],
+   "risk": {
+    "severity": "medium",
+    "confidence": 0.9,
+    "novelty": 0.0,
+    "persistence": 0.0,
+    "spatial": 0.00013,
+    "looks": 3,
+    "composite": 38.2
+   },
+   "held": "flagged once, and 2 other comparison(s) covering this place did not show it. Consistent with something moveable; held pending a look that confirms it",
+   "review_status": "pending"
+  },
+  {
+   "id": "alert-66ef39bbc97d",
+   "aoi_id": "IN-SSD-DAM",
+   "title": "Surface change \u2014 1,831,600 m2",
+   "severity": "medium",
+   "priority": 3,
+   "created_at": "2026-04-08T06:00:00+00:00",
+   "summary": "183.2 ha of previously open water now returns a land signature (0.28); consistent with a falling water level or exposed bank",
+   "evidence_id": "ev-a902b3466cfd7a63",
+   "rule": "Water extent change at a dam or in a flood-prone area",
+   "rule_text": "IF finding kind is change AND change type is one of ['inundation', 'surface_change'] AND area m2 is at least 250000 (scope: dam) THEN alert via dashboard, email",
+   "matched_rules": [
+    "Water extent change at a dam or in a flood-prone area"
+   ],
+   "risk": {
+    "severity": "medium",
+    "confidence": 0.97,
+    "novelty": 1.0,
+    "persistence": 0.0,
+    "spatial": 0.13009,
+    "looks": 4,
+    "composite": 48.9
+   },
+   "held": "flagged once, and 3 other comparison(s) covering this place did not show it. Consistent with something moveable; held pending a look that confirms it",
+   "review_status": "pending"
+  },
+  {
+   "id": "alert-18a334ae1e25",
+   "aoi_id": "IN-MUN-PORT",
+   "title": "New structure \u2014 3,700 m2",
+   "severity": "medium",
+   "priority": 3,
+   "created_at": "2026-04-14T10:30:00+00:00",
+   "summary": "compact 3,700 m2 footprint, darker than before, with local variation down 94% -- a uniform engineered surface has replaced a varied natural one",
+   "evidence_id": "ev-afa352a1b381dfad",
+   "rule": "New structure at a monitored site",
+   "rule_text": "IF finding kind is change AND change type is one of ['new_structure', 'structure_removed'] AND confidence is at least 0.6 AND area m2 is at least 1500 (scope: every monitored area) THEN alert via dashboard, email",
+   "matched_rules": [
+    "New structure at a monitored site"
+   ],
+   "risk": {
+    "severity": "medium",
+    "confidence": 0.943,
+    "novelty": 1.0,
+    "persistence": 0.0,
+    "spatial": 0.00024,
+    "looks": 1,
+    "composite": 47.7
+   },
+   "held": "seen in one comparison only; a moveable object has not been ruled out. Held for confirmation against the next usable scene",
+   "review_status": "pending"
+  },
+  {
+   "id": "alert-31d0a9e49b52",
+   "aoi_id": "IN-MUN-PORT",
+   "title": "New structure \u2014 1,800 m2",
+   "severity": "medium",
+   "priority": 3,
+   "created_at": "2026-04-14T10:30:00+00:00",
+   "summary": "compact 1,800 m2 footprint darker than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+   "evidence_id": "ev-b1a21557ea79f29f",
+   "rule": "New structure at a monitored site",
+   "rule_text": "IF finding kind is change AND change type is one of ['new_structure', 'structure_removed'] AND confidence is at least 0.6 AND area m2 is at least 1500 (scope: every monitored area) THEN alert via dashboard, email",
+   "matched_rules": [
+    "New structure at a monitored site"
+   ],
+   "risk": {
+    "severity": "medium",
+    "confidence": 0.9,
+    "novelty": 1.0,
+    "persistence": 0.0,
+    "spatial": 0.00012,
+    "looks": 1,
+    "composite": 46.8
+   },
+   "held": "seen in one comparison only; a moveable object has not been ruled out. Held for confirmation against the next usable scene",
+   "review_status": "pending"
+  },
+  {
+   "id": "alert-2dade412566f",
+   "aoi_id": "IN-SSD-DAM",
+   "title": "New structure \u2014 8,300 m2",
+   "severity": "medium",
+   "priority": 3,
+   "created_at": "2026-04-14T10:30:00+00:00",
+   "summary": "compact 8,300 m2 footprint darker than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+   "evidence_id": "ev-d037a49bee70b7aa",
+   "rule": "New structure at a monitored site",
+   "rule_text": "IF finding kind is change AND change type is one of ['new_structure', 'structure_removed'] AND confidence is at least 0.6 AND area m2 is at least 1500 (scope: every monitored area) THEN alert via dashboard, email",
+   "matched_rules": [
+    "New structure at a monitored site"
+   ],
+   "risk": {
+    "severity": "medium",
+    "confidence": 0.97,
+    "novelty": 0.479,
+    "persistence": 0.0,
+    "spatial": 0.00059,
+    "looks": 5,
+    "composite": 43.7
+   },
+   "held": "flagged once, and 4 other comparison(s) covering this place did not show it. Consistent with something moveable; held pending a look that confirms it",
+   "review_status": "pending"
+  },
+  {
+   "id": "alert-e8f3fa6d115b",
+   "aoi_id": "IN-MUN-PORT",
+   "title": "New structure \u2014 2,100 m2",
+   "severity": "medium",
+   "priority": 3,
+   "created_at": "2026-04-19T10:30:00+00:00",
+   "summary": "compact 2,100 m2 footprint brighter than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+   "evidence_id": "ev-e0cc45e3511316b8",
+   "rule": "New structure at a monitored site",
+   "rule_text": "IF finding kind is change AND change type is one of ['new_structure', 'structure_removed'] AND confidence is at least 0.6 AND area m2 is at least 1500 (scope: every monitored area) THEN alert via dashboard, email",
+   "matched_rules": [
+    "New structure at a monitored site"
+   ],
+   "risk": {
+    "severity": "medium",
+    "confidence": 0.852,
+    "novelty": 0.0,
+    "persistence": 1.0,
+    "spatial": 0.00013,
+    "looks": 2,
+    "composite": 43.9
+   },
+   "held": "",
+   "review_status": "pending"
+  },
+  {
+   "id": "alert-c632a6a339c2",
+   "aoi_id": "IN-MUN-PORT",
+   "title": "Structure removed \u2014 2,700 m2",
+   "severity": "medium",
+   "priority": 3,
+   "created_at": "2026-04-20T06:00:00+00:00",
+   "summary": "compact 2,700 m2 footprint whose layover and shadow returns have fallen 42%; consistent with a vertical structure no longer present",
+   "evidence_id": "ev-0bda95faf4b7a9cc",
+   "rule": "New structure at a monitored site",
+   "rule_text": "IF finding kind is change AND change type is one of ['new_structure', 'structure_removed'] AND confidence is at least 0.6 AND area m2 is at least 1500 (scope: every monitored area) THEN alert via dashboard, email",
+   "matched_rules": [
+    "New structure at a monitored site"
+   ],
+   "risk": {
+    "severity": "medium",
+    "confidence": 0.922,
+    "novelty": 1.0,
+    "persistence": 0.0,
+    "spatial": 0.00017,
+    "looks": 3,
+    "composite": 47.3
+   },
+   "held": "",
+   "review_status": "pending"
+  },
+  {
+   "id": "alert-8bb152f5326f",
+   "aoi_id": "IN-MUN-PORT",
+   "title": "New structure \u2014 20,600 m2",
+   "severity": "medium",
+   "priority": 3,
+   "created_at": "2026-04-26T06:00:00+00:00",
+   "summary": "compact 20,600 m2 footprint with backscatter structure up 122%; bright layover and shadow against flat ground is the radar signature of a vertical structure",
+   "evidence_id": "ev-7a3176cd594e8c21",
+   "rule": "New structure at a monitored site",
+   "rule_text": "IF finding kind is change AND change type is one of ['new_structure', 'structure_removed'] AND confidence is at least 0.6 AND area m2 is at least 1500 (scope: every monitored area) THEN alert via dashboard, email",
+   "matched_rules": [
+    "New structure at a monitored site"
+   ],
+   "risk": {
+    "severity": "medium",
+    "confidence": 0.764,
+    "novelty": 0.626,
+    "persistence": 0.25,
+    "spatial": 0.00132,
+    "looks": 5,
+    "composite": 42.4
+   },
+   "held": "",
+   "review_status": "pending"
+  },
+  {
+   "id": "alert-5107d186838d",
+   "aoi_id": "IN-SSD-DAM",
+   "title": "New structure \u2014 1,500 m2",
+   "severity": "medium",
+   "priority": 3,
+   "created_at": "2026-04-29T10:30:00+00:00",
+   "summary": "compact 1,500 m2 footprint brighter than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+   "evidence_id": "ev-28fd28f7d6d728ee",
+   "rule": "New structure at a monitored site",
+   "rule_text": "IF finding kind is change AND change type is one of ['new_structure', 'structure_removed'] AND confidence is at least 0.6 AND area m2 is at least 1500 (scope: every monitored area) THEN alert via dashboard, email",
+   "matched_rules": [
+    "New structure at a monitored site"
+   ],
+   "risk": {
+    "severity": "medium",
+    "confidence": 0.87,
+    "novelty": 0.0,
+    "persistence": 0.333,
+    "spatial": 0.00011,
+    "looks": 7,
+    "composite": 39.9
+   },
+   "held": "",
+   "review_status": "pending"
+  },
+  {
+   "id": "alert-39619063fadd",
+   "aoi_id": "IN-SSD-DAM",
+   "title": "New structure \u2014 21,600 m2",
+   "severity": "medium",
+   "priority": 3,
+   "created_at": "2026-05-01T10:00:00+00:00",
+   "summary": "compact 21,600 m2 footprint darker than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+   "evidence_id": "ev-39218c7c26473c23",
+   "rule": "New structure at a monitored site",
+   "rule_text": "IF finding kind is change AND change type is one of ['new_structure', 'structure_removed'] AND confidence is at least 0.6 AND area m2 is at least 1500 (scope: every monitored area) THEN alert via dashboard, email",
+   "matched_rules": [
+    "New structure at a monitored site"
+   ],
+   "risk": {
+    "severity": "medium",
+    "confidence": 0.97,
+    "novelty": 0.17,
+    "persistence": 0.143,
+    "spatial": 0.00153,
+    "looks": 8,
+    "composite": 42.0
+   },
+   "held": "",
+   "review_status": "pending"
+  },
+  {
+   "id": "alert-08f56df9098a",
+   "aoi_id": "IN-SSD-DAM",
+   "title": "New structure \u2014 10,800 m2",
+   "severity": "medium",
+   "priority": 3,
+   "created_at": "2026-05-01T10:00:00+00:00",
+   "summary": "compact 10,800 m2 footprint, darker than before, with local variation down 37% -- a uniform engineered surface has replaced a varied natural one",
+   "evidence_id": "ev-595eaed51dccb8e3",
+   "rule": "New structure at a monitored site",
+   "rule_text": "IF finding kind is change AND change type is one of ['new_structure', 'structure_removed'] AND confidence is at least 0.6 AND area m2 is at least 1500 (scope: every monitored area) THEN alert via dashboard, email",
+   "matched_rules": [
+    "New structure at a monitored site"
+   ],
+   "risk": {
+    "severity": "medium",
+    "confidence": 0.961,
+    "novelty": 0.0,
+    "persistence": 0.143,
+    "spatial": 0.00077,
+    "looks": 8,
+    "composite": 40.3
+   },
+   "held": "",
+   "review_status": "pending"
+  },
+  {
+   "id": "alert-dfb8c82bfde5",
+   "aoi_id": "IN-SSD-DAM",
+   "title": "Surface change \u2014 322,200 m2",
+   "severity": "medium",
+   "priority": 3,
+   "created_at": "2026-05-01T10:00:00+00:00",
+   "summary": "32.2 ha of previously open water now returns a land signature (0.40); consistent with a falling water level or exposed bank",
+   "evidence_id": "ev-8e25955d4a247ffc",
+   "rule": "Water extent change at a dam or in a flood-prone area",
+   "rule_text": "IF finding kind is change AND change type is one of ['inundation', 'surface_change'] AND area m2 is at least 250000 (scope: dam) THEN alert via dashboard, email",
+   "matched_rules": [
+    "Water extent change at a dam or in a flood-prone area"
+   ],
+   "risk": {
+    "severity": "medium",
+    "confidence": 0.97,
+    "novelty": 0.066,
+    "persistence": 0.0,
+    "spatial": 0.02288,
+    "looks": 8,
+    "composite": 40.1
+   },
+   "held": "flagged once, and 7 other comparison(s) covering this place did not show it. Consistent with something moveable; held pending a look that confirms it",
+   "review_status": "pending"
+  },
+  {
+   "id": "alert-e168f3fa999d",
+   "aoi_id": "IN-SSD-DAM",
+   "title": "New structure \u2014 3,000 m2",
+   "severity": "medium",
+   "priority": 3,
+   "created_at": "2026-05-04T10:30:00+00:00",
+   "summary": "compact 3,000 m2 footprint brighter than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+   "evidence_id": "ev-17a4afd81a088c76",
+   "rule": "New structure at a monitored site",
+   "rule_text": "IF finding kind is change AND change type is one of ['new_structure', 'structure_removed'] AND confidence is at least 0.6 AND area m2 is at least 1500 (scope: every monitored area) THEN alert via dashboard, email",
+   "matched_rules": [
+    "New structure at a monitored site"
+   ],
+   "risk": {
+    "severity": "medium",
+    "confidence": 0.826,
+    "novelty": 0.0,
+    "persistence": 0.0,
+    "spatial": 0.00021,
+    "looks": 9,
+    "composite": 36.9
+   },
+   "held": "flagged once, and 8 other comparison(s) covering this place did not show it. Consistent with something moveable; held pending a look that confirms it",
+   "review_status": "pending"
+  },
+  {
+   "id": "alert-16528c519cb8",
+   "aoi_id": "IN-MUN-PORT",
+   "title": "New structure \u2014 2,100 m2",
+   "severity": "medium",
+   "priority": 3,
+   "created_at": "2026-05-08T06:00:00+00:00",
+   "summary": "compact 2,100 m2 footprint darker than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+   "evidence_id": "ev-8aa4e8c6e533fc4e",
+   "rule": "New structure at a monitored site",
+   "rule_text": "IF finding kind is change AND change type is one of ['new_structure', 'structure_removed'] AND confidence is at least 0.6 AND area m2 is at least 1500 (scope: every monitored area) THEN alert via dashboard, email",
+   "matched_rules": [
+    "New structure at a monitored site"
+   ],
+   "risk": {
+    "severity": "medium",
+    "confidence": 0.908,
+    "novelty": 0.0,
+    "persistence": 0.429,
+    "spatial": 0.00013,
+    "looks": 8,
+    "composite": 41.2
+   },
+   "held": "",
+   "review_status": "pending"
+  },
+  {
+   "id": "alert-a881ddcaf1f9",
+   "aoi_id": "IN-SSD-DAM",
+   "title": "New structure \u2014 1,800 m2",
+   "severity": "medium",
+   "priority": 3,
+   "created_at": "2026-05-09T10:30:00+00:00",
+   "summary": "compact 1,800 m2 footprint brighter than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+   "evidence_id": "ev-32c6bed4584c7ef1",
+   "rule": "New structure at a monitored site",
+   "rule_text": "IF finding kind is change AND change type is one of ['new_structure', 'structure_removed'] AND confidence is at least 0.6 AND area m2 is at least 1500 (scope: every monitored area) THEN alert via dashboard, email",
+   "matched_rules": [
+    "New structure at a monitored site"
+   ],
+   "risk": {
+    "severity": "medium",
+    "confidence": 0.807,
+    "novelty": 0.0,
+    "persistence": 0.1,
+    "spatial": 0.00013,
+    "looks": 11,
+    "composite": 37.2
+   },
+   "held": "",
+   "review_status": "pending"
+  },
+  {
+   "id": "alert-cf6736dc53f4",
+   "aoi_id": "IN-KCH-SECTOR",
+   "title": "New structure \u2014 2,900 m2",
+   "severity": "high",
+   "priority": 3,
+   "created_at": "2026-07-31T06:00:00+00:00",
+   "summary": "compact 2,900 m2 footprint with backscatter structure up 1380%; bright layover and shadow against flat ground is the radar signature of a vertical structure",
+   "evidence_id": "ev-c1b6cd83b8d9d6e8",
+   "rule": "Construction or new track in a remote sector",
+   "rule_text": "IF finding kind is change AND change type is one of ['construction_activity', 'linear_feature', 'new_structure'] AND confidence is at least 0.55 (scope: border_sector) THEN alert via dashboard, webhook",
+   "matched_rules": [
+    "Construction or new track in a remote sector",
+    "New structure at a monitored site"
+   ],
+   "risk": {
+    "severity": "high",
+    "confidence": 0.927,
+    "novelty": 1.0,
+    "persistence": 0.0,
+    "spatial": 0.00016,
+    "looks": 2,
+    "composite": 71.1
+   },
+   "held": "flagged once, and 1 other comparison(s) covering this place did not show it. Consistent with something moveable; held pending a look that confirms it",
+   "review_status": "pending"
+  },
+  {
+   "id": "alert-57f72a9b3dc0",
+   "aoi_id": "IN-KCH-SECTOR",
+   "title": "New structure \u2014 2,700 m2",
+   "severity": "high",
+   "priority": 3,
+   "created_at": "2026-08-06T06:00:00+00:00",
+   "summary": "compact 2,700 m2 footprint brighter than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+   "evidence_id": "ev-18769927b31fef84",
+   "rule": "Construction or new track in a remote sector",
+   "rule_text": "IF finding kind is change AND change type is one of ['construction_activity', 'linear_feature', 'new_structure'] AND confidence is at least 0.55 (scope: border_sector) THEN alert via dashboard, webhook",
+   "matched_rules": [
+    "Construction or new track in a remote sector",
+    "New structure at a monitored site"
+   ],
+   "risk": {
+    "severity": "high",
+    "confidence": 0.91,
+    "novelty": 0.0,
+    "persistence": 0.0,
+    "spatial": 0.00015,
+    "looks": 3,
+    "composite": 57.6
+   },
+   "held": "flagged once, and 2 other comparison(s) covering this place did not show it. Consistent with something moveable; held pending a look that confirms it",
+   "review_status": "pending"
+  },
+  {
+   "id": "alert-96d91cc29ef1",
+   "aoi_id": "IN-KCH-SECTOR",
+   "title": "New structure \u2014 1,500 m2",
+   "severity": "medium",
+   "priority": 3,
+   "created_at": "2026-08-06T06:00:00+00:00",
+   "summary": "compact 1,500 m2 footprint brighter than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+   "evidence_id": "ev-3add451400cde30b",
+   "rule": "Construction or new track in a remote sector",
+   "rule_text": "IF finding kind is change AND change type is one of ['construction_activity', 'linear_feature', 'new_structure'] AND confidence is at least 0.55 (scope: border_sector) THEN alert via dashboard, webhook",
+   "matched_rules": [
+    "Construction or new track in a remote sector",
+    "New structure at a monitored site"
+   ],
+   "risk": {
+    "severity": "medium",
+    "confidence": 0.699,
+    "novelty": 0.067,
+    "persistence": 0.5,
+    "spatial": 8e-05,
+    "looks": 3,
+    "composite": 38.1
+   },
+   "held": "",
+   "review_status": "pending"
+  },
+  {
+   "id": "alert-155d3296ace2",
+   "aoi_id": "IN-SSD-DAM",
+   "title": "New structure \u2014 3,000 m2",
+   "severity": "medium",
+   "priority": 4,
+   "created_at": "2026-04-24T10:30:00+00:00",
+   "summary": "compact 3,000 m2 footprint brighter than before, with little change in local variation; structure inferred from shape rather than texture, so confidence is capped accordingly",
+   "evidence_id": "ev-0f54717d18d8d118",
+   "rule": "New structure at a monitored site",
+   "rule_text": "IF finding kind is change AND change type is one of ['new_structure', 'structure_removed'] AND confidence is at least 0.6 AND area m2 is at least 1500 (scope: every monitored area) THEN alert via dashboard, email",
+   "matched_rules": [
+    "New structure at a monitored site"
+   ],
+   "risk": {
+    "severity": "medium",
+    "confidence": 0.624,
+    "novelty": 0.026,
+    "persistence": 0.0,
+    "spatial": 0.00021,
+    "looks": 6,
+    "composite": 33.4
+   },
+   "held": "flagged once, and 5 other comparison(s) covering this place did not show it. Consistent with something moveable; held pending a look that confirms it",
+   "review_status": "pending"
+  }
+ ],
+ "rules": [
+  {
+   "id": "rule-activity-deviation",
+   "org_id": "org-sensegrass-demo",
+   "name": "Activity well outside the site's historical envelope",
+   "enabled": true,
+   "conditions": [
+    {
+     "field": "finding_kind",
+     "op": "eq",
+     "value": "anomaly"
+    },
+    {
+     "field": "anomaly_score",
+     "op": "gte",
+     "value": 65
+    },
+    {
+     "field": "confidence",
+     "op": "gte",
+     "value": 0.5
+    },
+    {
+     "field": "baseline_n",
+     "op": "gte",
+     "value": 12
+    }
+   ],
+   "severity_floor": "medium",
+   "aoi_ids": [],
+   "aoi_kinds": [],
+   "channels": [
+    "dashboard"
+   ],
+   "suppress_days": 5,
+   "created_by": "",
+   "description": "IF finding kind is anomaly AND anomaly score is at least 65 AND confidence is at least 0.5 AND baseline n is at least 12 (scope: every monitored area) THEN alert via dashboard"
+  },
+  {
+   "id": "rule-border-activity",
+   "org_id": "org-sensegrass-demo",
+   "name": "Construction or new track in a remote sector",
+   "enabled": true,
+   "conditions": [
+    {
+     "field": "finding_kind",
+     "op": "eq",
+     "value": "change"
+    },
+    {
+     "field": "change_type",
+     "op": "in",
+     "value": [
+      "construction_activity",
+      "linear_feature",
+      "new_structure"
+     ]
+    },
+    {
+     "field": "confidence",
+     "op": "gte",
+     "value": 0.55
+    }
+   ],
+   "severity_floor": "low",
+   "aoi_ids": [],
+   "aoi_kinds": [
+    "border_sector"
+   ],
+   "channels": [
+    "dashboard",
+    "webhook"
+   ],
+   "suppress_days": 3,
+   "created_by": "",
+   "description": "IF finding kind is change AND change type is one of ['construction_activity', 'linear_feature', 'new_structure'] AND confidence is at least 0.55 (scope: border_sector) THEN alert via dashboard, webhook"
+  },
+  {
+   "id": "rule-new-structure",
+   "org_id": "org-sensegrass-demo",
+   "name": "New structure at a monitored site",
+   "enabled": true,
+   "conditions": [
+    {
+     "field": "finding_kind",
+     "op": "eq",
+     "value": "change"
+    },
+    {
+     "field": "change_type",
+     "op": "in",
+     "value": [
+      "new_structure",
+      "structure_removed"
+     ]
+    },
+    {
+     "field": "confidence",
+     "op": "gte",
+     "value": 0.6
+    },
+    {
+     "field": "area_m2",
+     "op": "gte",
+     "value": 1500
+    }
+   ],
+   "severity_floor": "medium",
+   "aoi_ids": [],
+   "aoi_kinds": [],
+   "channels": [
+    "dashboard",
+    "email"
+   ],
+   "suppress_days": 7,
+   "created_by": "",
+   "description": "IF finding kind is change AND change type is one of ['new_structure', 'structure_removed'] AND confidence is at least 0.6 AND area m2 is at least 1500 (scope: every monitored area) THEN alert via dashboard, email"
+  },
+  {
+   "id": "rule-infrastructure-damage",
+   "org_id": "org-sensegrass-demo",
+   "name": "Possible damage to critical infrastructure",
+   "enabled": true,
+   "conditions": [
+    {
+     "field": "finding_kind",
+     "op": "eq",
+     "value": "change"
+    },
+    {
+     "field": "change_type",
+     "op": "eq",
+     "value": "possible_damage"
+    }
+   ],
+   "severity_floor": "high",
+   "aoi_ids": [],
+   "aoi_kinds": [
+    "energy",
+    "dam",
+    "port",
+    "transport",
+    "industrial"
+   ],
+   "channels": [
+    "dashboard",
+    "email",
+    "webhook"
+   ],
+   "suppress_days": 1,
+   "created_by": "",
+   "description": "IF finding kind is change AND change type is possible_damage (scope: energy, dam, port, transport, industrial) THEN alert via dashboard, email, webhook"
+  },
+  {
+   "id": "rule-inundation",
+   "org_id": "org-sensegrass-demo",
+   "name": "Water extent change at a dam or in a flood-prone area",
+   "enabled": true,
+   "conditions": [
+    {
+     "field": "finding_kind",
+     "op": "eq",
+     "value": "change"
+    },
+    {
+     "field": "change_type",
+     "op": "in",
+     "value": [
+      "inundation",
+      "surface_change"
+     ]
+    },
+    {
+     "field": "area_m2",
+     "op": "gte",
+     "value": 250000
+    }
+   ],
+   "severity_floor": "medium",
+   "aoi_ids": [],
+   "aoi_kinds": [
+    "dam"
+   ],
+   "channels": [
+    "dashboard",
+    "email"
+   ],
+   "suppress_days": 7,
+   "created_by": "",
+   "description": "IF finding kind is change AND change type is one of ['inundation', 'surface_change'] AND area m2 is at least 250000 (scope: dam) THEN alert via dashboard, email"
+  }
+ ]
+}</script>
+<script>
+(function(){
+  "use strict";
+  const DATA = JSON.parse(document.getElementById("payload").textContent);
+  const $ = (s,r)=> (r||document).querySelector(s);
+  const el = (t,c,x)=>{const n=document.createElement(t); if(c)n.className=c;
+    if(x!==undefined)n.textContent=x; return n;};
+  const num = n => (n||0).toLocaleString("en-US");
+  const pct = v => (v==null? "—" : Math.round(v*100)+"%");
+  const m2  = v => v>=1e6 ? (v/1e6).toFixed(2)+" km²"
+                 : v>=1e4 ? (v/1e4).toFixed(1)+" ha"
+                 : num(Math.round(v))+" m²";
+  const titleCase = s => s.replace(/_/g," ").replace(/^./,c=>c.toUpperCase());
+
+  /* ---- masthead ---- */
+  const t = DATA.totals;
+  const n = DATA.sites.length;
+  const areas = n===1 ? "one monitored area" :
+    (["", "one", "two", "three", "four", "five", "six"][n] || String(n))+
+    " monitored areas";
+  $("#lede").textContent =
+    "AI-powered Earth observation over "+areas+". Detection, change, "+
+    "pattern-of-life deviation and ranked alerts — each one carrying the "+
+    "imagery and the working behind it.";
+
+  //: Each site carries its own monitored period, so a single estate-wide
+  //: window would be a number that applies to none of them.
+  const spans = DATA.sites.map(s=>[s.monitored_from, s.monitored_to]);
+  const record = spans.length
+    ? spans.reduce((a,b)=>[a[0]<b[0]?a[0]:b[0], a[1]>b[1]?a[1]:b[1]])
+    : null;
+  const stamp = $("#stamp");
+  [["report date", DATA.as_of],
+   ["record", record ? record[0]+" to "+record[1] : "empty"],
+   ["organisation", DATA.organisation],
+   ["built", DATA.generated_at.slice(0,16).replace("T"," ")+"Z"]
+  ].forEach(([k,v],i)=>{
+    if(i) stamp.appendChild(el("span","dot"));
+    const s=el("span"); s.appendChild(el("b",null,k+" ")); s.append(v);
+    stamp.appendChild(s);
+  });
+
+  const usablePct = t.acquired_scenes ? t.usable_scenes/t.acquired_scenes : 0;
+  [["Active areas", num(t.sites), "", ""],
+   ["Open alerts", num(t.alerts), t.priority_1+" at priority 1", t.priority_1?"alarm":""],
+   ["Changes detected", num(t.changes), "across the window", ""],
+   ["Objects detected", num(t.objects), "in usable scenes", ""],
+   ["Usable imagery", Math.round(usablePct*100)+"%", t.usable_scenes+" of "+t.acquired_scenes+" acquisitions", usablePct>0.6?"good":"warn"]
+  ].forEach(([k,v,s,cls])=>{
+    const d = el("div","metric"+(cls?" "+cls:""));
+    d.appendChild(el("div","k",k)); d.appendChild(el("div","v",v));
+    if(s) d.appendChild(el("div","s",s));
+    $("#metrics").appendChild(d);
+  });
+
+  /* ---- estate map ---- */
+  const svg = $("#estate"), NS="http://www.w3.org/2000/svg";
+  const mk=(t,a)=>{const n=document.createElementNS(NS,t);
+    for(const k in a) n.setAttribute(k,a[k]); return n;};
+  const lons = DATA.sites.map(s=>s.centroid[0]), lats = DATA.sites.map(s=>s.centroid[1]);
+  const pad = 1.6;
+  const b = {x0:Math.min(...lons)-pad, x1:Math.max(...lons)+pad,
+             y0:Math.min(...lats)-pad, y1:Math.max(...lats)+pad};
+  const X = lon => 40 + (lon-b.x0)/(b.x1-b.x0) * 480;
+  const Y = lat => 320 - (lat-b.y0)/(b.y1-b.y0) * 290;
+  for(let g=Math.ceil(b.x0); g<=b.x1; g++){
+    svg.appendChild(mk("line",{class:"grat",x1:X(g),y1:26,x2:X(g),y2:322}));
+    const tx=mk("text",{class:"lbl",x:X(g),y:334,"text-anchor":"middle"});
+    tx.textContent=g+"°E"; svg.appendChild(tx);
+  }
+  for(let g=Math.ceil(b.y0); g<=b.y1; g++){
+    svg.appendChild(mk("line",{class:"grat",x1:38,y1:Y(g),x2:524,y2:Y(g)}));
+    const tx=mk("text",{class:"lbl",x:30,y:Y(g)+2.5,"text-anchor":"end"});
+    tx.textContent=g+"°N"; svg.appendChild(tx);
+  }
+  const COLOR={anomalous:"#FF6B4A",watch:"#FFA033",normal:"#A3D948",stale:"#7B8B9C"};
+  DATA.sites.forEach(s=>{
+    const cx=X(s.centroid[0]), cy=Y(s.centroid[1]), c=COLOR[s.status];
+    const bw = Math.max(7,(s.bbox[2]-s.bbox[0])/(b.x1-b.x0)*480);
+    const bh = Math.max(6,(s.bbox[3]-s.bbox[1])/(b.y1-b.y0)*290);
+    svg.appendChild(mk("rect",{x:cx-bw/2,y:cy-bh/2,width:bw,height:bh,
+      fill:"none",stroke:c,"stroke-width":1,opacity:.85}));
+    if(s.status==="anomalous"||s.status==="watch")
+      svg.appendChild(mk("circle",{class:"halo",cx,cy,r:15,stroke:c}));
+    svg.appendChild(mk("circle",{cx,cy,r:3.2,fill:c}));
+    const nm=mk("text",{class:"site-name",x:cx,y:cy-bh/2-6,"text-anchor":"middle"});
+    nm.textContent=s.name.split("—")[0].trim(); svg.appendChild(nm);
+  });
+
+  /* ---- site list ---- */
+  const list = $("#sitelist");
+  DATA.sites.forEach(s=>{
+    const row = el("button","siterow"); row.type="button"; row.dataset.id=s.id;
+    row.appendChild(el("span","pip st-"+s.status));
+    const mid=el("span");
+    mid.appendChild(el("div","nm",s.name));
+    mid.appendChild(el("div","sub",
+      s.kind.replace(/_/g," ")+" · "+s.area_km2+" km² · "+
+      s.monitored_from+" → "+s.monitored_to));
+    row.appendChild(mid);
+    const rt=el("span","rt");
+    rt.innerHTML = s.change_count+" chg<br>"+s.alert_count+" alerts";
+    row.appendChild(rt);
+    row.addEventListener("click",()=>select(s.id));
+    list.appendChild(row);
+  });
+
+  /* ---- queue ---- */
+  const q = $("#queue");
+  if(!DATA.queue.length){ q.appendChild(el("div","panel-pad muted","Queue is empty.")); }
+  DATA.queue.slice(0,14).forEach(a=>{
+    const row=el("div","alert");
+    row.appendChild(el("div","prio p"+a.priority,String(a.priority)));
+    const body=el("div");
+    const hd=el("div","hd");
+    hd.appendChild(el("span","ttl",a.title));
+    hd.appendChild(el("span","chip "+a.severity,a.severity));
+    hd.appendChild(el("span","chip",a.aoi_id));
+    body.appendChild(hd);
+    if(a.summary) body.appendChild(el("div","body",a.summary));
+    if(a.risk && a.risk.composite!==undefined){
+      const bars=el("div","risk-bars");
+      [["confidence",a.risk.confidence],["novelty",a.risk.novelty],
+       ["persistence",a.risk.persistence],["spatial",a.risk.spatial]]
+      .forEach(([k,v])=>{
+        const rb=el("div","rb"); rb.appendChild(el("div","rk",k));
+        const tr=el("div","track"); const f=el("div","fill");
+        f.style.width=Math.max(2,Math.min(100,(v||0)*100))+"%";
+        tr.appendChild(f); rb.appendChild(tr);
+        rb.appendChild(el("div","rv", k==="spatial"? ((v||0)*100).toFixed(2)+"%" : pct(v)));
+        bars.appendChild(rb);
+      });
+      body.appendChild(bars);
+    }
+    if(a.held) body.appendChild(el("div","held","Held for confirmation — "+a.held));
+    const meta=el("div","meta");
+    meta.append(a.created_at.slice(0,10));
+    if(a.rule){ meta.appendChild(el("span","dot")); meta.append("rule: "+a.rule); }
+    if(a.risk && a.risk.composite!==undefined){
+      meta.appendChild(el("span","dot")); meta.append("risk "+a.risk.composite);
+    }
+    if(a.evidence_id){ meta.appendChild(el("span","dot"));
+      meta.append("evidence "+a.evidence_id); }
+    body.appendChild(meta);
+    if(a.rule_text){
+      const d=el("details","ev"); const sm=el("summary","","Why this fired");
+      d.appendChild(sm); const inner=el("div","inner");
+      inner.appendChild(el("div","mono",a.rule_text));
+      const extra=(a.matched_rules||[]).filter(n=>n!==a.rule);
+      if(extra.length){
+        const p2=el("p","muted");
+        p2.style.cssText="margin:8px 0 0;font-size:12.5px";
+        p2.textContent="Also matched: "+extra.join("; ")+
+          ". One finding raises one alert however many rules notice it.";
+        inner.appendChild(p2);
+      }
+      d.appendChild(inner); body.appendChild(d);
+    }
+    row.appendChild(body); q.appendChild(row);
+  });
+
+  /* ---- rules ---- */
+  const rt=$("#rules");
+  rt.innerHTML="<tr><th>Rule</th><th>Condition</th><th>Scope</th><th>Channels</th><th class='num'>Suppress</th></tr>";
+  DATA.rules.forEach(r=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML = "<td>"+r.name+"</td><td class='mono' style='font-size:12px'>"+
+      r.description.replace(/^IF /,"").replace(/ THEN.*$/,"")+"</td>"+
+      "<td class='mono' style='font-size:12px'>"+
+      (r.aoi_kinds.length? r.aoi_kinds.join(", ") : (r.aoi_ids.length? r.aoi_ids.join(", ") : "all areas"))+
+      "</td><td class='mono' style='font-size:12px'>"+r.channels.join(", ")+
+      "</td><td class='num'>"+r.suppress_days+" d</td>";
+    rt.appendChild(tr);
+  });
+
+  /* ---- site detail ---- */
+  function coverageBars(site){
+    const wrap=el("div");
+    const max = Math.max(1,...site.coverage_by_month.map(m=>m.usable+m.cloudy));
+    const bars=el("div","covbars");
+    site.coverage_by_month.forEach(m=>{
+      const col=el("div","covcol");
+      const stack=el("div"); stack.style.display="flex";
+      stack.style.flexDirection="column"; stack.style.justifyContent="flex-end";
+      stack.style.height="62px"; stack.style.gap="1px";
+      [["cloudy",m.cloudy],["optical",m.optical],["sar",m.sar]].forEach(([k,v])=>{
+        if(!v) return;
+        const s=el("div","seg "+k); s.style.height=(v/max*60)+"px";
+        s.title=v+" "+k; stack.appendChild(s);
+      });
+      col.appendChild(stack);
+      col.appendChild(el("div","m",m.month.slice(2).replace("-","/")));
+      bars.appendChild(col);
+    });
+    wrap.appendChild(bars);
+    const lg=el("div","legend");
+    lg.innerHTML='<span><i style="background:var(--sar)"></i>SAR usable</span>'+
+      '<span><i style="background:var(--optical)"></i>Optical usable</span>'+
+      '<span><i style="background:var(--cloud)"></i>Rejected for cloud</span>';
+    wrap.appendChild(lg);
+    return wrap;
+  }
+
+  function anomalyStrip(site){
+    const wrap=el("div");
+    const strip=el("div","anomstrip");
+    const rows = site.anomalies.slice(-90);
+    if(!rows.length){ wrap.appendChild(el("p","muted","No assessments recorded."));
+      return wrap; }
+    rows.forEach(a=>{
+      const bar=el("div","b");
+      bar.style.height=Math.max(2,(a.score/100)*52)+"px";
+      bar.style.background = a.score>=65?"var(--critical)":a.score>=40?"var(--high)":
+        a.score>=15?"var(--medium)":"var(--line)";
+      bar.title=a.date+" — score "+a.score+"/100, confidence "+pct(a.confidence)+
+        (a.reasons.length? "\n"+a.reasons.join("\n") : "");
+      strip.appendChild(bar);
+    });
+    wrap.appendChild(strip);
+    const peak = rows.reduce((m,a)=>a.score>m.score?a:m, rows[0]);
+    const cap=el("p","muted");
+    cap.style.fontSize="12.5px"; cap.style.marginTop="8px";
+    cap.textContent = rows.length+" assessments. Peak "+peak.score+"/100 on "+
+      peak.date+" at "+pct(peak.confidence)+" confidence, against a baseline of "+
+      peak.baseline_n+" prior observations.";
+    wrap.appendChild(cap);
+    if(peak.reasons && peak.reasons.length){
+      const ul=el("ul"); ul.style.cssText="margin:6px 0 0;padding-left:18px;font-size:13px;color:var(--ink-2)";
+      peak.reasons.forEach(r=>ul.appendChild(el("li",null,r)));
+      wrap.appendChild(ul);
+    }
+    return wrap;
+  }
+
+  function swipe(chip, key){
+    const box=el("div","swipe");
+    const base=el("img"); base.src=chip[key+"after"]; base.alt="after";
+    base.loading="lazy"; box.appendChild(base);
+    const top=el("div","top"); const bimg=el("img");
+    bimg.src=chip[key+"before"]; bimg.alt="before"; bimg.loading="lazy";
+    top.appendChild(bimg); box.appendChild(top);
+    const handle=el("div","handle"); const knob=el("div","knob");
+    box.appendChild(handle); box.appendChild(knob);
+    const lcap=el("div","cap l","before "+chip.before_on);
+    const rcap=el("div","cap r","after "+chip.after_on);
+    box.appendChild(lcap); box.appendChild(rcap);
+    let x=0.5;
+    function place(){
+      top.style.width=(x*100)+"%";
+      handle.style.left=(x*100)+"%"; knob.style.left=(x*100)+"%";
+    }
+    function at(ev){
+      const r=box.getBoundingClientRect();
+      const cx=(ev.touches? ev.touches[0].clientX : ev.clientX);
+      x=Math.min(1,Math.max(0,(cx-r.left)/r.width)); place();
+    }
+    let drag=false;
+    box.addEventListener("pointerdown",e=>{drag=true; box.setPointerCapture(e.pointerId); at(e);});
+    box.addEventListener("pointermove",e=>{ if(drag) at(e); });
+    box.addEventListener("pointerup",e=>{drag=false;});
+    box.addEventListener("pointercancel",()=>{drag=false;});
+    place();
+    return box;
+  }
+
+  function chipBlock(chip){
+    const p=el("div","panel panel-pad");
+    p.style.marginTop="14px";
+    const hd=el("div","hd");
+    hd.style.cssText="display:flex;gap:9px;align-items:baseline;flex-wrap:wrap";
+    hd.appendChild(el("span","ttl",titleCase(chip.type)));
+    hd.appendChild(el("span","chip "+chip.severity,chip.severity));
+    hd.appendChild(el("span","chip accent",m2(chip.area_m2)));
+    hd.appendChild(el("span","chip","confidence "+pct(chip.confidence)));
+    p.appendChild(hd);
+    const ex=el("p"); ex.style.cssText="margin:8px 0 12px;color:var(--ink-2);font-size:13.5px";
+    ex.textContent=chip.explanation; p.appendChild(ex);
+
+    const v=el("div","viewer");
+    v.appendChild(swipe(chip,"detail_"));
+    const note=el("p","muted");
+    note.style.cssText="font-size:11.5px;margin:0;font-family:var(--f-mono)";
+    note.textContent = "detail, "+chip.detail_cells.join(" × ")+" cells at "+
+      chip.gsd_m+" m — shown unsmoothed, so the pixels are the resolution "+
+      "actually available";
+    v.appendChild(note);
+    const g=el("div","vgrid");
+    [["detail_mask","Change mask · detail"],
+     ["mask","Full scene · change highlighted"],
+     ["before","Full scene · before "+chip.before_on]].forEach(([k,cap])=>{
+      const f=document.createElement("figure");
+      const im=el("img"); im.src=chip[k]; im.alt=cap; im.loading="lazy";
+      f.appendChild(im); f.appendChild(el("figcaption",null,cap)); g.appendChild(f);
+    });
+    v.appendChild(g); p.appendChild(v);
+
+    const d=el("details","ev");
+    d.appendChild(el("summary",null,"Evidence and processing"));
+    const inner=el("div","inner");
+    const rows=[["sensor",chip.constellation+" · "+chip.sensor+" · "+chip.gsd_m+" m"],
+      ["scenes",chip.before_scene+"  →  "+chip.after_scene],
+      ["co-registration","shifted "+chip.registration_shift.join(", ")+" cells to align"],
+      ["noise floor",chip.noise_floor],
+      ["obscured by cloud",pct(chip.obscured_fraction)],
+      ["evidence bundle",chip.evidence_id||"—"]];
+    const tb=document.createElement("table");
+    rows.forEach(([k,v2])=>{const tr=document.createElement("tr");
+      tr.innerHTML="<td class='mono muted' style='width:190px'>"+k+
+        "</td><td class='mono' style='font-size:12px'>"+v2+"</td>"; tb.appendChild(tr);});
+    inner.appendChild(tb); d.appendChild(inner); p.appendChild(d);
+    return p;
+  }
+
+  function select(id){
+    const site = DATA.sites.find(s=>s.id===id) || DATA.sites[0];
+    document.querySelectorAll(".siterow").forEach(r=>
+      r.setAttribute("aria-current", String(r.dataset.id===site.id)));
+    $("#site-title").textContent = site.name;
+    $("#site-note").textContent = (site.headline || site.description) +
+      " · monitored " + site.monitored_from + " to " + site.monitored_to +
+      ", and assessed as of the end of its own record.";
+
+    const body=$("#site-body"); body.innerHTML="";
+
+    const top=el("div"); top.style.cssText=
+      "display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px";
+    const cov=el("div","panel panel-pad");
+    cov.appendChild(el("h3",null,"Imagery coverage"));
+    const cnote=el("p","muted");
+    cnote.style.cssText="font-size:12.5px;margin:5px 0 10px";
+    cnote.textContent = site.coverage.usable+" usable of "+site.coverage.acquired+
+      " acquisitions. Longest gap without a usable look: "+
+      site.coverage.longest_gap_days+" days.";
+    cov.appendChild(cnote); cov.appendChild(coverageBars(site));
+    top.appendChild(cov);
+
+    const an=el("div","panel panel-pad");
+    an.appendChild(el("h3",null,"Activity against baseline"));
+    const anote=el("p","muted");
+    anote.style.cssText="font-size:12.5px;margin:5px 0 4px";
+    anote.textContent="Deviation from this site's own record. Not an assessment of cause.";
+    an.appendChild(anote); an.appendChild(anomalyStrip(site));
+    top.appendChild(an);
+    body.appendChild(top);
+
+    if(site.chips.length){
+      const h=el("h3"); h.style.cssText="margin:26px 0 0;font-size:16px";
+      h.textContent="Change viewer"; body.appendChild(h);
+      const sub=el("p","muted"); sub.style.cssText="font-size:12.5px;margin:5px 0 0";
+      sub.textContent="Drag the divider. These are the rendered scenes the "+
+        "finding was computed from, not illustrations.";
+      body.appendChild(sub);
+      site.chips.forEach(c=>body.appendChild(chipBlock(c)));
+    }
+
+    const h2=el("h3"); h2.style.cssText="margin:26px 0 0;font-size:16px";
+    h2.textContent="Change record"; body.appendChild(h2);
+    const tw=el("div","panel panel-pad tblwrap"); tw.style.marginTop="10px";
+    const tb=document.createElement("table");
+    tb.innerHTML="<tr><th>Date</th><th>Type</th><th class='num'>Extent</th>"+
+      "<th>Severity</th><th class='num'>Conf.</th><th>Measurement</th></tr>";
+    if(!site.changes.length){
+      const tr=document.createElement("tr");
+      tr.innerHTML="<td colspan='6' class='muted'>No changes recorded. "+
+        "Check coverage above before reading this as quiet.</td>";
+      tb.appendChild(tr);
+    }
+    site.changes.slice(0,25).forEach(c=>{
+      const tr=document.createElement("tr");
+      tr.innerHTML="<td class='mono' style='font-size:12px'>"+c.detected_on+"</td>"+
+        "<td>"+titleCase(c.type)+"</td><td class='num'>"+m2(c.area_m2)+"</td>"+
+        "<td><span class='chip "+c.severity+"'>"+c.severity+"</span></td>"+
+        "<td class='num'>"+pct(c.confidence)+"</td>"+
+        "<td style='color:var(--ink-2);font-size:12.5px'>"+c.explanation+"</td>";
+      tb.appendChild(tr);
+    });
+    tw.appendChild(tb); body.appendChild(tw);
+  }
+
+  $("#audit-line").textContent =
+    "Audit chain: "+(DATA.audit.chain_intact? "intact" : "BROKEN at entry "+DATA.audit.first_bad_entry)+
+    " over "+num(DATA.audit.entries)+" recorded actions.";
+
+  if(DATA.sites.length) select(
+    (DATA.sites.find(s=>s.status==="anomalous")||DATA.sites[0]).id);
+})();
+</script>

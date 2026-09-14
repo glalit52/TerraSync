@@ -1,0 +1,655 @@
+<title>TerraShield Console</title>
+<!--
+  No webfont, and no other outbound request of any kind. This console is meant
+  to open from a filesystem inside a facility that may have no route to the
+  internet at all, so a stylesheet fetched from a third party is broken exactly
+  where the product is supposed to work. It is also a disclosure: every analyst
+  opening the page would announce to a font CDN that they had done so, from
+  which network, and when. The font stacks below resolve locally on every
+  platform this will be opened on.
+-->
+<style>
+  :root{
+    color-scheme:dark;
+    --ground:#070D14; --surface:#0D1520; --surface-2:#131E2B; --sunken:#0A111A;
+    --ink:#E8EFF5; --ink-2:#B4C4D2; --muted:#7B8B9C;
+    --line:#1E2C3C; --line-soft:#17222E;
+    --accent:#A3D948; --accent-soft:#a3d94816; --accent-line:#a3d94840;
+    --critical:#FF6B4A; --critical-soft:#ff6b4a18;
+    --high:#FFA033; --high-soft:#ffa03318;
+    --medium:#4FB3F5; --medium-soft:#4fb3f518;
+    --low:#7B8B9C; --low-soft:#7b8b9c18;
+    --sar:#C77DFF; --optical:#4FB3F5; --cloud:#3A4757;
+    --f-body:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,
+              "Helvetica Neue",Arial,sans-serif;
+    --f-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,
+              "DejaVu Sans Mono",monospace;
+  }
+  *{box-sizing:border-box}
+  body{background:var(--ground);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.55;margin:0}
+  .wrap{max-width:1200px;margin:0 auto;padding-inline:18px;padding-block:0 72px}
+  h1,h2,h3{text-wrap:balance;margin:0}
+  a{color:var(--accent);text-decoration-thickness:1px;text-underline-offset:2px}
+  .mono{font-family:var(--f-mono)}
+  .muted{color:var(--muted)}
+
+  /* masthead */
+  .mast{border-bottom:1px solid var(--line);background:
+      radial-gradient(1200px 320px at 78% -40%, #14304a 0%, transparent 70%),
+      linear-gradient(180deg,#091220 0%, var(--ground) 100%)}
+  .mast .wrap{padding-block:30px 26px}
+  .brand{display:flex;align-items:baseline;gap:11px;flex-wrap:wrap}
+  .brand h1{font-size:clamp(30px,5vw,44px);font-weight:700;letter-spacing:-.02em}
+  .brand h1 em{font-style:normal;color:var(--accent)}
+  .brand .tag{color:var(--ink-2);font-size:14px;letter-spacing:.08em;text-transform:uppercase}
+  .lede{margin-top:9px;max-width:60ch;color:var(--ink-2)}
+  .stamp{margin-top:14px;font-family:var(--f-mono);font-size:12px;color:var(--muted);
+    display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .stamp b{color:var(--ink-2);font-weight:500}
+  .dot{width:5px;height:5px;border-radius:50%;background:var(--line);flex:none}
+
+  /* metric row */
+  .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;
+    background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-top:26px}
+  .metric{background:var(--surface);padding:15px 16px 14px}
+  .metric .k{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--muted)}
+  .metric .v{font-size:30px;font-weight:600;letter-spacing:-.02em;margin-top:3px;
+    font-variant-numeric:tabular-nums;line-height:1.1}
+  .metric .s{font-size:12px;color:var(--muted);margin-top:2px}
+  .metric.alarm .v{color:var(--critical)}
+  .metric.warn .v{color:var(--high)}
+  .metric.good .v{color:var(--accent)}
+
+  section{margin-top:44px}
+  .sec-head{display:flex;align-items:baseline;justify-content:space-between;gap:14px;
+    flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:9px;margin-bottom:18px}
+  .sec-head h2{font-size:19px;font-weight:600;letter-spacing:-.01em}
+  .sec-head .note{font-size:13px;color:var(--muted);max-width:56ch}
+
+  .panel{background:var(--surface);border:1px solid var(--line);border-radius:10px}
+  .panel-pad{padding:16px 18px}
+
+  /* estate map */
+  .mapgrid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);
+    gap:16px;align-items:start}
+  @media(max-width:860px){.mapgrid{grid-template-columns:1fr}}
+  .estate{width:100%;height:auto;display:block;border-radius:10px;background:var(--sunken)}
+  .estate .grat{stroke:var(--line);stroke-width:.6;fill:none}
+  .estate .lbl{fill:var(--muted);font-family:var(--f-mono);font-size:7px}
+  .estate .site-name{fill:var(--ink-2);font-family:var(--f-body);font-size:8.5px;font-weight:500}
+  .estate .halo{fill:none;stroke-width:1.2;opacity:.55}
+
+  .sitelist{display:flex;flex-direction:column;gap:1px;background:var(--line);
+    border:1px solid var(--line);border-radius:10px;overflow:hidden;
+    align-self:start}
+  .siterow{background:var(--surface);padding:11px 14px;display:grid;
+    grid-template-columns:9px 1fr auto;gap:11px;align-items:center;cursor:pointer;
+    border:0;text-align:left;color:inherit;font:inherit;width:100%}
+  .siterow:hover{background:var(--surface-2)}
+  .siterow[aria-current="true"]{background:var(--surface-2);box-shadow:inset 2px 0 0 var(--accent)}
+  .pip{width:9px;height:9px;border-radius:50%}
+  .siterow .nm{font-weight:500;font-size:14px}
+  .siterow .sub{font-size:12px;color:var(--muted);font-family:var(--f-mono)}
+  .siterow .rt{text-align:right;font-family:var(--f-mono);font-size:11.5px;color:var(--muted)}
+
+  .st-anomalous{background:var(--critical)} .st-watch{background:var(--high)}
+  .st-normal{background:var(--accent)} .st-stale{background:var(--muted)}
+
+  /* chips + tables */
+  .chip{display:inline-flex;align-items:center;gap:5px;font-family:var(--f-mono);
+    font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;
+    border-radius:4px;border:1px solid var(--line);color:var(--ink-2);white-space:nowrap}
+  .chip.critical{color:var(--critical);border-color:#ff6b4a44;background:var(--critical-soft)}
+  .chip.high{color:var(--high);border-color:#ffa03344;background:var(--high-soft)}
+  .chip.medium{color:var(--medium);border-color:#4fb3f544;background:var(--medium-soft)}
+  .chip.low{color:var(--low);border-color:var(--line);background:var(--low-soft)}
+  .chip.accent{color:var(--accent);border-color:var(--accent-line);background:var(--accent-soft)}
+
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th{text-align:left;font-family:var(--f-mono);font-size:10.5px;letter-spacing:.09em;
+    text-transform:uppercase;color:var(--muted);font-weight:500;
+    border-bottom:1px solid var(--line);padding:7px 10px}
+  td{padding:9px 10px;border-bottom:1px solid var(--line-soft);vertical-align:top}
+  tr:last-child td{border-bottom:0}
+  td.num{text-align:right;font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+  .tblwrap{overflow-x:auto}
+
+  /* queue */
+  .alert{display:grid;grid-template-columns:34px 1fr;gap:13px;padding:14px 16px;
+    border-bottom:1px solid var(--line-soft)}
+  .alert:last-child{border-bottom:0}
+  .prio{font-family:var(--f-mono);font-size:16px;font-weight:600;text-align:center;
+    border-radius:6px;padding:5px 0;height:fit-content}
+  .p1{background:var(--critical-soft);color:var(--critical);border:1px solid #ff6b4a44}
+  .p2{background:var(--high-soft);color:var(--high);border:1px solid #ffa03344}
+  .p3{background:var(--medium-soft);color:var(--medium);border:1px solid #4fb3f544}
+  .p4{background:var(--low-soft);color:var(--low);border:1px solid var(--line)}
+  .alert .hd{display:flex;gap:9px;align-items:baseline;flex-wrap:wrap}
+  .alert .ttl{font-weight:600;font-size:14.5px}
+  .alert .body{font-size:13.5px;color:var(--ink-2);margin-top:5px}
+  .alert .meta{font-family:var(--f-mono);font-size:11px;color:var(--muted);margin-top:7px;
+    display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+  .held{margin-top:8px;font-size:12.5px;color:var(--high);background:var(--high-soft);
+    border-left:2px solid var(--high);padding:6px 10px;border-radius:0 5px 5px 0}
+  .risk-bars{display:grid;grid-template-columns:repeat(auto-fit,minmax(86px,1fr));
+    gap:8px;margin-top:9px}
+  .rb .rk{font-family:var(--f-mono);font-size:9.5px;letter-spacing:.07em;
+    text-transform:uppercase;color:var(--muted)}
+  .rb .track{height:3px;background:var(--line);border-radius:2px;margin-top:3px;overflow:hidden}
+  .rb .fill{height:100%;background:var(--accent)}
+  .rb .rv{font-family:var(--f-mono);font-size:11px;color:var(--ink-2);margin-top:2px}
+
+  /* change viewer */
+  .viewer{display:grid;grid-template-columns:1fr;gap:14px}
+  .viewer .swipe{max-width:560px;width:100%;justify-self:start}
+  .swipe{position:relative;border-radius:8px;overflow:hidden;background:#000;
+    border:1px solid var(--line);touch-action:none}
+  .swipe img{display:block;width:100%;height:auto;image-rendering:pixelated}
+  .swipe .top{position:absolute;inset:0;overflow:hidden}
+  .swipe .top img{position:absolute;top:0;left:0;width:100%}
+  .swipe .handle{position:absolute;top:0;bottom:0;width:2px;background:var(--accent);
+    box-shadow:0 0 8px #a3d94888;pointer-events:none}
+  .swipe .knob{position:absolute;top:50%;width:26px;height:26px;margin:-13px 0 0 -13px;
+    border-radius:50%;background:var(--accent);border:2px solid #070D14;pointer-events:none}
+  .swipe .cap{position:absolute;bottom:7px;font-family:var(--f-mono);font-size:10px;
+    letter-spacing:.08em;text-transform:uppercase;background:#070d14cc;color:var(--ink-2);
+    padding:2px 7px;border-radius:3px;pointer-events:none}
+  .swipe .cap.l{left:7px} .swipe .cap.r{right:7px}
+  .vgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+  .vgrid figure{margin:0}
+  .vgrid img{width:100%;height:auto;display:block;border-radius:7px;
+    border:1px solid var(--line);image-rendering:pixelated}
+  .vgrid figcaption{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.06em;
+    text-transform:uppercase;color:var(--muted);margin-top:6px}
+  input[type=range]{width:100%;accent-color:var(--accent)}
+
+  /* coverage bars */
+  .covbars{display:flex;gap:4px;align-items:flex-end;height:78px;margin-top:4px}
+  .covcol{flex:1;display:flex;flex-direction:column;justify-content:flex-end;gap:1px;min-width:0}
+  .covcol .seg{border-radius:1px}
+  .covcol .sar{background:var(--sar)} .covcol .optical{background:var(--optical)}
+  .covcol .cloudy{background:var(--cloud)}
+  .covcol .m{font-family:var(--f-mono);font-size:8.5px;color:var(--muted);
+    text-align:center;margin-top:4px;white-space:nowrap;overflow:hidden}
+  .legend{display:flex;gap:13px;flex-wrap:wrap;font-family:var(--f-mono);font-size:10.5px;
+    color:var(--muted);margin-top:9px}
+  .legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;
+    vertical-align:-1px}
+
+  /* anomaly strip */
+  .anomstrip{display:flex;gap:2px;align-items:flex-end;height:56px;margin-top:6px}
+  .anomstrip .b{flex:1;min-width:2px;border-radius:1px 1px 0 0;background:var(--line)}
+
+  details.ev{border:1px solid var(--line);border-radius:8px;background:var(--sunken);
+    margin-top:10px}
+  details.ev summary{cursor:pointer;padding:9px 13px;font-family:var(--f-mono);
+    font-size:11.5px;letter-spacing:.05em;color:var(--ink-2);list-style:none}
+  details.ev summary::-webkit-details-marker{display:none}
+  details.ev summary::before{content:"▸ ";color:var(--accent)}
+  details.ev[open] summary::before{content:"▾ "}
+  details.ev .inner{padding:0 13px 13px;font-size:13px;color:var(--ink-2)}
+
+  .callout{border-left:2px solid var(--accent);background:var(--accent-soft);
+    padding:12px 15px;border-radius:0 7px 7px 0;font-size:13.5px;color:var(--ink-2)}
+  .callout b{color:var(--ink)}
+  footer{margin-top:56px;border-top:1px solid var(--line);padding-top:20px;
+    font-size:12.5px;color:var(--muted)}
+  .hidden{display:none !important}
+</style>
+
+<div class="mast">
+  <div class="wrap">
+    <div class="brand">
+      <h1>Terra<em>Shield</em></h1>
+      <span class="tag">Space intelligence · mission ready</span>
+    </div>
+    <p class="lede" id="lede"></p>
+    <div class="stamp" id="stamp"></div>
+    <div class="metrics" id="metrics"></div>
+  </div>
+</div>
+
+<div class="wrap">
+
+<section>
+  <div class="sec-head">
+    <h2>Monitored estate</h2>
+    <p class="note">Status describes the last three weeks of each site's own
+      record, measured against that site's own history rather than a fixed
+      threshold. Select a site to open it below.</p>
+  </div>
+  <div class="mapgrid">
+    <div class="panel" style="padding:10px"><svg class="estate" id="estate"
+      viewBox="0 0 560 360" role="img" aria-label="Monitored areas"></svg></div>
+    <div class="sitelist" id="sitelist"></div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <h2>Alert queue</h2>
+    <p class="note">Ranked by composite risk, not by severity alone — a
+      confirmed medium-severity change outranks an unconfirmed high-severity one.</p>
+  </div>
+  <div class="panel" id="queue"></div>
+</section>
+
+<section id="site-section">
+  <div class="sec-head">
+    <h2 id="site-title">Site intelligence</h2>
+    <p class="note" id="site-note"></p>
+  </div>
+  <div id="site-body"></div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <h2>Alert rules</h2>
+    <p class="note">Rules are data, not code: every alert can be traced to the
+      sentence that raised it.</p>
+  </div>
+  <div class="panel panel-pad tblwrap"><table id="rules"></table></div>
+</section>
+
+<footer>
+  <p><b>What this is.</b> TerraShield is an analyst-assistance and monitoring
+  system. It reports what changed, where, when, and how far that departs from a
+  site's own recorded history. It makes no assessment of cause, ownership or
+  intent, and every finding is subject to analyst review.</p>
+  <p>Findings on this page were produced by the pipeline in
+  <span class="mono">src/terrashield/</span> from modelled imagery over four real
+  civilian sites. Detection precision, recall and confidence calibration are
+  measured, not claimed — run <span class="mono">terrashield evaluate</span>.</p>
+  <p id="audit-line" class="mono"></p>
+</footer>
+</div>
+
+<script type="application/json" id="payload">__DATA__</script>
+<script>
+(function(){
+  "use strict";
+  const DATA = JSON.parse(document.getElementById("payload").textContent);
+  const $ = (s,r)=> (r||document).querySelector(s);
+  const el = (t,c,x)=>{const n=document.createElement(t); if(c)n.className=c;
+    if(x!==undefined)n.textContent=x; return n;};
+  const num = n => (n||0).toLocaleString("en-US");
+  const pct = v => (v==null? "—" : Math.round(v*100)+"%");
+  const m2  = v => v>=1e6 ? (v/1e6).toFixed(2)+" km²"
+                 : v>=1e4 ? (v/1e4).toFixed(1)+" ha"
+                 : num(Math.round(v))+" m²";
+  const titleCase = s => s.replace(/_/g," ").replace(/^./,c=>c.toUpperCase());
+
+  /* ---- masthead ---- */
+  const t = DATA.totals;
+  const n = DATA.sites.length;
+  const areas = n===1 ? "one monitored area" :
+    (["", "one", "two", "three", "four", "five", "six"][n] || String(n))+
+    " monitored areas";
+  $("#lede").textContent =
+    "AI-powered Earth observation over "+areas+". Detection, change, "+
+    "pattern-of-life deviation and ranked alerts — each one carrying the "+
+    "imagery and the working behind it.";
+
+  //: Each site carries its own monitored period, so a single estate-wide
+  //: window would be a number that applies to none of them.
+  const spans = DATA.sites.map(s=>[s.monitored_from, s.monitored_to]);
+  const record = spans.length
+    ? spans.reduce((a,b)=>[a[0]<b[0]?a[0]:b[0], a[1]>b[1]?a[1]:b[1]])
+    : null;
+  const stamp = $("#stamp");
+  [["report date", DATA.as_of],
+   ["record", record ? record[0]+" to "+record[1] : "empty"],
+   ["organisation", DATA.organisation],
+   ["built", DATA.generated_at.slice(0,16).replace("T"," ")+"Z"]
+  ].forEach(([k,v],i)=>{
+    if(i) stamp.appendChild(el("span","dot"));
+    const s=el("span"); s.appendChild(el("b",null,k+" ")); s.append(v);
+    stamp.appendChild(s);
+  });
+
+  const usablePct = t.acquired_scenes ? t.usable_scenes/t.acquired_scenes : 0;
+  [["Active areas", num(t.sites), "", ""],
+   ["Open alerts", num(t.alerts), t.priority_1+" at priority 1", t.priority_1?"alarm":""],
+   ["Changes detected", num(t.changes), "across the window", ""],
+   ["Objects detected", num(t.objects), "in usable scenes", ""],
+   ["Usable imagery", Math.round(usablePct*100)+"%", t.usable_scenes+" of "+t.acquired_scenes+" acquisitions", usablePct>0.6?"good":"warn"]
+  ].forEach(([k,v,s,cls])=>{
+    const d = el("div","metric"+(cls?" "+cls:""));
+    d.appendChild(el("div","k",k)); d.appendChild(el("div","v",v));
+    if(s) d.appendChild(el("div","s",s));
+    $("#metrics").appendChild(d);
+  });
+
+  /* ---- estate map ---- */
+  const svg = $("#estate"), NS="http://www.w3.org/2000/svg";
+  const mk=(t,a)=>{const n=document.createElementNS(NS,t);
+    for(const k in a) n.setAttribute(k,a[k]); return n;};
+  const lons = DATA.sites.map(s=>s.centroid[0]), lats = DATA.sites.map(s=>s.centroid[1]);
+  const pad = 1.6;
+  const b = {x0:Math.min(...lons)-pad, x1:Math.max(...lons)+pad,
+             y0:Math.min(...lats)-pad, y1:Math.max(...lats)+pad};
+  const X = lon => 40 + (lon-b.x0)/(b.x1-b.x0) * 480;
+  const Y = lat => 320 - (lat-b.y0)/(b.y1-b.y0) * 290;
+  for(let g=Math.ceil(b.x0); g<=b.x1; g++){
+    svg.appendChild(mk("line",{class:"grat",x1:X(g),y1:26,x2:X(g),y2:322}));
+    const tx=mk("text",{class:"lbl",x:X(g),y:334,"text-anchor":"middle"});
+    tx.textContent=g+"°E"; svg.appendChild(tx);
+  }
+  for(let g=Math.ceil(b.y0); g<=b.y1; g++){
+    svg.appendChild(mk("line",{class:"grat",x1:38,y1:Y(g),x2:524,y2:Y(g)}));
+    const tx=mk("text",{class:"lbl",x:30,y:Y(g)+2.5,"text-anchor":"end"});
+    tx.textContent=g+"°N"; svg.appendChild(tx);
+  }
+  const COLOR={anomalous:"#FF6B4A",watch:"#FFA033",normal:"#A3D948",stale:"#7B8B9C"};
+  DATA.sites.forEach(s=>{
+    const cx=X(s.centroid[0]), cy=Y(s.centroid[1]), c=COLOR[s.status];
+    const bw = Math.max(7,(s.bbox[2]-s.bbox[0])/(b.x1-b.x0)*480);
+    const bh = Math.max(6,(s.bbox[3]-s.bbox[1])/(b.y1-b.y0)*290);
+    svg.appendChild(mk("rect",{x:cx-bw/2,y:cy-bh/2,width:bw,height:bh,
+      fill:"none",stroke:c,"stroke-width":1,opacity:.85}));
+    if(s.status==="anomalous"||s.status==="watch")
+      svg.appendChild(mk("circle",{class:"halo",cx,cy,r:15,stroke:c}));
+    svg.appendChild(mk("circle",{cx,cy,r:3.2,fill:c}));
+    const nm=mk("text",{class:"site-name",x:cx,y:cy-bh/2-6,"text-anchor":"middle"});
+    nm.textContent=s.name.split("—")[0].trim(); svg.appendChild(nm);
+  });
+
+  /* ---- site list ---- */
+  const list = $("#sitelist");
+  DATA.sites.forEach(s=>{
+    const row = el("button","siterow"); row.type="button"; row.dataset.id=s.id;
+    row.appendChild(el("span","pip st-"+s.status));
+    const mid=el("span");
+    mid.appendChild(el("div","nm",s.name));
+    mid.appendChild(el("div","sub",
+      s.kind.replace(/_/g," ")+" · "+s.area_km2+" km² · "+
+      s.monitored_from+" → "+s.monitored_to));
+    row.appendChild(mid);
+    const rt=el("span","rt");
+    rt.innerHTML = s.change_count+" chg<br>"+s.alert_count+" alerts";
+    row.appendChild(rt);
+    row.addEventListener("click",()=>select(s.id));
+    list.appendChild(row);
+  });
+
+  /* ---- queue ---- */
+  const q = $("#queue");
+  if(!DATA.queue.length){ q.appendChild(el("div","panel-pad muted","Queue is empty.")); }
+  DATA.queue.slice(0,14).forEach(a=>{
+    const row=el("div","alert");
+    row.appendChild(el("div","prio p"+a.priority,String(a.priority)));
+    const body=el("div");
+    const hd=el("div","hd");
+    hd.appendChild(el("span","ttl",a.title));
+    hd.appendChild(el("span","chip "+a.severity,a.severity));
+    hd.appendChild(el("span","chip",a.aoi_id));
+    body.appendChild(hd);
+    if(a.summary) body.appendChild(el("div","body",a.summary));
+    if(a.risk && a.risk.composite!==undefined){
+      const bars=el("div","risk-bars");
+      [["confidence",a.risk.confidence],["novelty",a.risk.novelty],
+       ["persistence",a.risk.persistence],["spatial",a.risk.spatial]]
+      .forEach(([k,v])=>{
+        const rb=el("div","rb"); rb.appendChild(el("div","rk",k));
+        const tr=el("div","track"); const f=el("div","fill");
+        f.style.width=Math.max(2,Math.min(100,(v||0)*100))+"%";
+        tr.appendChild(f); rb.appendChild(tr);
+        rb.appendChild(el("div","rv", k==="spatial"? ((v||0)*100).toFixed(2)+"%" : pct(v)));
+        bars.appendChild(rb);
+      });
+      body.appendChild(bars);
+    }
+    if(a.held) body.appendChild(el("div","held","Held for confirmation — "+a.held));
+    const meta=el("div","meta");
+    meta.append(a.created_at.slice(0,10));
+    if(a.rule){ meta.appendChild(el("span","dot")); meta.append("rule: "+a.rule); }
+    if(a.risk && a.risk.composite!==undefined){
+      meta.appendChild(el("span","dot")); meta.append("risk "+a.risk.composite);
+    }
+    if(a.evidence_id){ meta.appendChild(el("span","dot"));
+      meta.append("evidence "+a.evidence_id); }
+    body.appendChild(meta);
+    if(a.rule_text){
+      const d=el("details","ev"); const sm=el("summary","","Why this fired");
+      d.appendChild(sm); const inner=el("div","inner");
+      inner.appendChild(el("div","mono",a.rule_text));
+      const extra=(a.matched_rules||[]).filter(n=>n!==a.rule);
+      if(extra.length){
+        const p2=el("p","muted");
+        p2.style.cssText="margin:8px 0 0;font-size:12.5px";
+        p2.textContent="Also matched: "+extra.join("; ")+
+          ". One finding raises one alert however many rules notice it.";
+        inner.appendChild(p2);
+      }
+      d.appendChild(inner); body.appendChild(d);
+    }
+    row.appendChild(body); q.appendChild(row);
+  });
+
+  /* ---- rules ---- */
+  const rt=$("#rules");
+  rt.innerHTML="<tr><th>Rule</th><th>Condition</th><th>Scope</th><th>Channels</th><th class='num'>Suppress</th></tr>";
+  DATA.rules.forEach(r=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML = "<td>"+r.name+"</td><td class='mono' style='font-size:12px'>"+
+      r.description.replace(/^IF /,"").replace(/ THEN.*$/,"")+"</td>"+
+      "<td class='mono' style='font-size:12px'>"+
+      (r.aoi_kinds.length? r.aoi_kinds.join(", ") : (r.aoi_ids.length? r.aoi_ids.join(", ") : "all areas"))+
+      "</td><td class='mono' style='font-size:12px'>"+r.channels.join(", ")+
+      "</td><td class='num'>"+r.suppress_days+" d</td>";
+    rt.appendChild(tr);
+  });
+
+  /* ---- site detail ---- */
+  function coverageBars(site){
+    const wrap=el("div");
+    const max = Math.max(1,...site.coverage_by_month.map(m=>m.usable+m.cloudy));
+    const bars=el("div","covbars");
+    site.coverage_by_month.forEach(m=>{
+      const col=el("div","covcol");
+      const stack=el("div"); stack.style.display="flex";
+      stack.style.flexDirection="column"; stack.style.justifyContent="flex-end";
+      stack.style.height="62px"; stack.style.gap="1px";
+      [["cloudy",m.cloudy],["optical",m.optical],["sar",m.sar]].forEach(([k,v])=>{
+        if(!v) return;
+        const s=el("div","seg "+k); s.style.height=(v/max*60)+"px";
+        s.title=v+" "+k; stack.appendChild(s);
+      });
+      col.appendChild(stack);
+      col.appendChild(el("div","m",m.month.slice(2).replace("-","/")));
+      bars.appendChild(col);
+    });
+    wrap.appendChild(bars);
+    const lg=el("div","legend");
+    lg.innerHTML='<span><i style="background:var(--sar)"></i>SAR usable</span>'+
+      '<span><i style="background:var(--optical)"></i>Optical usable</span>'+
+      '<span><i style="background:var(--cloud)"></i>Rejected for cloud</span>';
+    wrap.appendChild(lg);
+    return wrap;
+  }
+
+  function anomalyStrip(site){
+    const wrap=el("div");
+    const strip=el("div","anomstrip");
+    const rows = site.anomalies.slice(-90);
+    if(!rows.length){ wrap.appendChild(el("p","muted","No assessments recorded."));
+      return wrap; }
+    rows.forEach(a=>{
+      const bar=el("div","b");
+      bar.style.height=Math.max(2,(a.score/100)*52)+"px";
+      bar.style.background = a.score>=65?"var(--critical)":a.score>=40?"var(--high)":
+        a.score>=15?"var(--medium)":"var(--line)";
+      bar.title=a.date+" — score "+a.score+"/100, confidence "+pct(a.confidence)+
+        (a.reasons.length? "\n"+a.reasons.join("\n") : "");
+      strip.appendChild(bar);
+    });
+    wrap.appendChild(strip);
+    const peak = rows.reduce((m,a)=>a.score>m.score?a:m, rows[0]);
+    const cap=el("p","muted");
+    cap.style.fontSize="12.5px"; cap.style.marginTop="8px";
+    cap.textContent = rows.length+" assessments. Peak "+peak.score+"/100 on "+
+      peak.date+" at "+pct(peak.confidence)+" confidence, against a baseline of "+
+      peak.baseline_n+" prior observations.";
+    wrap.appendChild(cap);
+    if(peak.reasons && peak.reasons.length){
+      const ul=el("ul"); ul.style.cssText="margin:6px 0 0;padding-left:18px;font-size:13px;color:var(--ink-2)";
+      peak.reasons.forEach(r=>ul.appendChild(el("li",null,r)));
+      wrap.appendChild(ul);
+    }
+    return wrap;
+  }
+
+  function swipe(chip, key){
+    const box=el("div","swipe");
+    const base=el("img"); base.src=chip[key+"after"]; base.alt="after";
+    base.loading="lazy"; box.appendChild(base);
+    const top=el("div","top"); const bimg=el("img");
+    bimg.src=chip[key+"before"]; bimg.alt="before"; bimg.loading="lazy";
+    top.appendChild(bimg); box.appendChild(top);
+    const handle=el("div","handle"); const knob=el("div","knob");
+    box.appendChild(handle); box.appendChild(knob);
+    const lcap=el("div","cap l","before "+chip.before_on);
+    const rcap=el("div","cap r","after "+chip.after_on);
+    box.appendChild(lcap); box.appendChild(rcap);
+    let x=0.5;
+    function place(){
+      top.style.width=(x*100)+"%";
+      handle.style.left=(x*100)+"%"; knob.style.left=(x*100)+"%";
+    }
+    function at(ev){
+      const r=box.getBoundingClientRect();
+      const cx=(ev.touches? ev.touches[0].clientX : ev.clientX);
+      x=Math.min(1,Math.max(0,(cx-r.left)/r.width)); place();
+    }
+    let drag=false;
+    box.addEventListener("pointerdown",e=>{drag=true; box.setPointerCapture(e.pointerId); at(e);});
+    box.addEventListener("pointermove",e=>{ if(drag) at(e); });
+    box.addEventListener("pointerup",e=>{drag=false;});
+    box.addEventListener("pointercancel",()=>{drag=false;});
+    place();
+    return box;
+  }
+
+  function chipBlock(chip){
+    const p=el("div","panel panel-pad");
+    p.style.marginTop="14px";
+    const hd=el("div","hd");
+    hd.style.cssText="display:flex;gap:9px;align-items:baseline;flex-wrap:wrap";
+    hd.appendChild(el("span","ttl",titleCase(chip.type)));
+    hd.appendChild(el("span","chip "+chip.severity,chip.severity));
+    hd.appendChild(el("span","chip accent",m2(chip.area_m2)));
+    hd.appendChild(el("span","chip","confidence "+pct(chip.confidence)));
+    p.appendChild(hd);
+    const ex=el("p"); ex.style.cssText="margin:8px 0 12px;color:var(--ink-2);font-size:13.5px";
+    ex.textContent=chip.explanation; p.appendChild(ex);
+
+    const v=el("div","viewer");
+    v.appendChild(swipe(chip,"detail_"));
+    const note=el("p","muted");
+    note.style.cssText="font-size:11.5px;margin:0;font-family:var(--f-mono)";
+    note.textContent = "detail, "+chip.detail_cells.join(" × ")+" cells at "+
+      chip.gsd_m+" m — shown unsmoothed, so the pixels are the resolution "+
+      "actually available";
+    v.appendChild(note);
+    const g=el("div","vgrid");
+    [["detail_mask","Change mask · detail"],
+     ["mask","Full scene · change highlighted"],
+     ["before","Full scene · before "+chip.before_on]].forEach(([k,cap])=>{
+      const f=document.createElement("figure");
+      const im=el("img"); im.src=chip[k]; im.alt=cap; im.loading="lazy";
+      f.appendChild(im); f.appendChild(el("figcaption",null,cap)); g.appendChild(f);
+    });
+    v.appendChild(g); p.appendChild(v);
+
+    const d=el("details","ev");
+    d.appendChild(el("summary",null,"Evidence and processing"));
+    const inner=el("div","inner");
+    const rows=[["sensor",chip.constellation+" · "+chip.sensor+" · "+chip.gsd_m+" m"],
+      ["scenes",chip.before_scene+"  →  "+chip.after_scene],
+      ["co-registration","shifted "+chip.registration_shift.join(", ")+" cells to align"],
+      ["noise floor",chip.noise_floor],
+      ["obscured by cloud",pct(chip.obscured_fraction)],
+      ["evidence bundle",chip.evidence_id||"—"]];
+    const tb=document.createElement("table");
+    rows.forEach(([k,v2])=>{const tr=document.createElement("tr");
+      tr.innerHTML="<td class='mono muted' style='width:190px'>"+k+
+        "</td><td class='mono' style='font-size:12px'>"+v2+"</td>"; tb.appendChild(tr);});
+    inner.appendChild(tb); d.appendChild(inner); p.appendChild(d);
+    return p;
+  }
+
+  function select(id){
+    const site = DATA.sites.find(s=>s.id===id) || DATA.sites[0];
+    document.querySelectorAll(".siterow").forEach(r=>
+      r.setAttribute("aria-current", String(r.dataset.id===site.id)));
+    $("#site-title").textContent = site.name;
+    $("#site-note").textContent = (site.headline || site.description) +
+      " · monitored " + site.monitored_from + " to " + site.monitored_to +
+      ", and assessed as of the end of its own record.";
+
+    const body=$("#site-body"); body.innerHTML="";
+
+    const top=el("div"); top.style.cssText=
+      "display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px";
+    const cov=el("div","panel panel-pad");
+    cov.appendChild(el("h3",null,"Imagery coverage"));
+    const cnote=el("p","muted");
+    cnote.style.cssText="font-size:12.5px;margin:5px 0 10px";
+    cnote.textContent = site.coverage.usable+" usable of "+site.coverage.acquired+
+      " acquisitions. Longest gap without a usable look: "+
+      site.coverage.longest_gap_days+" days.";
+    cov.appendChild(cnote); cov.appendChild(coverageBars(site));
+    top.appendChild(cov);
+
+    const an=el("div","panel panel-pad");
+    an.appendChild(el("h3",null,"Activity against baseline"));
+    const anote=el("p","muted");
+    anote.style.cssText="font-size:12.5px;margin:5px 0 4px";
+    anote.textContent="Deviation from this site's own record. Not an assessment of cause.";
+    an.appendChild(anote); an.appendChild(anomalyStrip(site));
+    top.appendChild(an);
+    body.appendChild(top);
+
+    if(site.chips.length){
+      const h=el("h3"); h.style.cssText="margin:26px 0 0;font-size:16px";
+      h.textContent="Change viewer"; body.appendChild(h);
+      const sub=el("p","muted"); sub.style.cssText="font-size:12.5px;margin:5px 0 0";
+      sub.textContent="Drag the divider. These are the rendered scenes the "+
+        "finding was computed from, not illustrations.";
+      body.appendChild(sub);
+      site.chips.forEach(c=>body.appendChild(chipBlock(c)));
+    }
+
+    const h2=el("h3"); h2.style.cssText="margin:26px 0 0;font-size:16px";
+    h2.textContent="Change record"; body.appendChild(h2);
+    const tw=el("div","panel panel-pad tblwrap"); tw.style.marginTop="10px";
+    const tb=document.createElement("table");
+    tb.innerHTML="<tr><th>Date</th><th>Type</th><th class='num'>Extent</th>"+
+      "<th>Severity</th><th class='num'>Conf.</th><th>Measurement</th></tr>";
+    if(!site.changes.length){
+      const tr=document.createElement("tr");
+      tr.innerHTML="<td colspan='6' class='muted'>No changes recorded. "+
+        "Check coverage above before reading this as quiet.</td>";
+      tb.appendChild(tr);
+    }
+    site.changes.slice(0,25).forEach(c=>{
+      const tr=document.createElement("tr");
+      tr.innerHTML="<td class='mono' style='font-size:12px'>"+c.detected_on+"</td>"+
+        "<td>"+titleCase(c.type)+"</td><td class='num'>"+m2(c.area_m2)+"</td>"+
+        "<td><span class='chip "+c.severity+"'>"+c.severity+"</span></td>"+
+        "<td class='num'>"+pct(c.confidence)+"</td>"+
+        "<td style='color:var(--ink-2);font-size:12.5px'>"+c.explanation+"</td>";
+      tb.appendChild(tr);
+    });
+    tw.appendChild(tb); body.appendChild(tw);
+  }
+
+  $("#audit-line").textContent =
+    "Audit chain: "+(DATA.audit.chain_intact? "intact" : "BROKEN at entry "+DATA.audit.first_bad_entry)+
+    " over "+num(DATA.audit.entries)+" recorded actions.";
+
+  if(DATA.sites.length) select(
+    (DATA.sites.find(s=>s.status==="anomalous")||DATA.sites[0]).id);
+})();
+</script>

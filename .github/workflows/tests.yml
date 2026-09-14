@@ -1,0 +1,31 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # The core has no dependencies on purpose, so there is nothing to
+      # install but the test runner itself.
+      - run: pip install pytest
+      - run: python -m pytest -q
+
+      # The console cannot be regenerated in CI -- that would mean running
+      # months of the monitoring pipeline over four sites -- so this checks the
+      # drift that actually happens instead: a rebuilt dataset left with a
+      # stale page, or a chip referenced but never committed.
+      - name: console is consistent with its dataset
+        run: python3 scripts/check_dashboard.py
+
+      - name: static build succeeds
+        run: bash scripts/build_static.sh

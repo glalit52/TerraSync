@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Databases are build output. `terrashield init` recreates one, and
+# scripts/build_demo.sh rebuilds the demonstration estate from scratch.
+*.db
+*.db-wal
+*.db-shm
+
+# Assembled by scripts/build_static.sh at deploy time.
+public/
