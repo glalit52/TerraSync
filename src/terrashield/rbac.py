@@ -36,6 +36,8 @@ PERMISSIONS: dict[str, Role] = {
 
     "aoi.create": Role.ANALYST,
     "aoi.update": Role.ANALYST,
+    "field.create": Role.ANALYST,
+    "field.update": Role.ANALYST,
     "rule.create": Role.ANALYST,
     "rule.update": Role.ANALYST,
     "finding.review": Role.ANALYST,

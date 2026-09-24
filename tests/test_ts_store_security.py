@@ -20,6 +20,7 @@ from terrashield.domain import (
 )
 from terrashield.store import Store
 from terrashield.store.repo import StoreError
+from terrashield.store.schema import MIGRATIONS
 
 ORG = "org-a"
 OTHER = "org-b"
@@ -272,14 +273,24 @@ def test_evidence_is_selected_by_when_the_finding_happened(store, db):
 
 
 def test_migrations_add_columns_without_losing_rows(db):
-    """Migration 2 runs against a database that already has evidence in it."""
+    """Every migration runs against a database that already has rows in it.
+
+    Asserted against MIGRATIONS rather than a hardcoded set, so adding a
+    migration does not require editing this test -- which is the failure mode
+    that turns a migration check into a rubber stamp.
+    """
     first = Store(db, org_id=ORG, actor="a@x.example")
-    assert first.version >= 2
+    expected = {version for version, _ in MIGRATIONS}
+    assert first.version == max(expected)
+
     cols = {r[1] for r in first.conn.execute("PRAGMA table_info(evidence)")}
-    assert "finding_at" in cols
+    assert "finding_at" in cols, "migration 2 added it"
+    cols = {r[1] for r in first.conn.execute("PRAGMA table_info(users)")}
+    assert "password_hash" in cols, "migration 3 added it"
+
     applied = {r[0] for r in first.conn.execute(
         "SELECT version FROM schema_version")}
-    assert applied == {1, 2}
+    assert applied == expected
 
 
 def test_counts_are_scoped_to_the_tenant(store, db):

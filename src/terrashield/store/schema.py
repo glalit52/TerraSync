@@ -236,6 +236,70 @@ MIGRATIONS: list[tuple[int, str]] = [
     ALTER TABLE evidence ADD COLUMN finding_at TEXT NOT NULL DEFAULT '';
     CREATE INDEX idx_evidence_when ON evidence(aoi_id, finding_at);
     """),
+    (3, """
+    -- Accounts, sessions, and the sub-areas of a monitored area.
+    --
+    -- Until now identity arrived from outside: api.serve took a dictionary of
+    -- bearer tokens to identities, which is a reasonable seam for SSO and no
+    -- answer at all to 'how does a customer sign up'. These three changes are
+    -- that answer.
+
+    -- Empty for every pre-existing row, which is deliberate: a user created
+    -- before passwords existed cannot sign in until one is set, and that is
+    -- the safe direction for the default to fail in.
+    ALTER TABLE users ADD COLUMN password_hash TEXT NOT NULL DEFAULT '';
+    ALTER TABLE users ADD COLUMN last_login_at TEXT NOT NULL DEFAULT '';
+
+    -- Email is the global identifier a person signs in with, so it has to be
+    -- unique across organisations and not merely within one. The older
+    -- (org_id, email) index stays: it is still the right constraint for
+    -- 'one membership per address per organisation'.
+    CREATE UNIQUE INDEX idx_users_email_global ON users(email);
+
+    -- Only the SHA-256 of a token is stored, never the token. A stolen
+    -- database therefore yields no usable sessions.
+    CREATE TABLE sessions (
+        token_hash TEXT PRIMARY KEY,
+        user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        org_id     TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        created_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        revoked_at TEXT NOT NULL DEFAULT ''
+    );
+    CREATE INDEX idx_sessions_user    ON sessions(user_id);
+    CREATE INDEX idx_sessions_expires ON sessions(expires_at);
+
+    -- A field is a named sub-polygon of an area: a parcel inside a farm, a
+    -- berth inside a port, a sector inside a border region. Findings are
+    -- attributed to the field they fall in, which is what makes a report read
+    -- 'block D' rather than a pair of coordinates.
+    --
+    -- Separate from aois rather than a self-reference, because the two are
+    -- genuinely different things: an AOI is what the satellite is tasked over
+    -- and what coverage and baselines are computed for, and a field is a unit
+    -- of meaning inside it. Making fields AOIs would multiply the tasking
+    -- cost by the number of parcels, which is exactly the bill a customer
+    -- does not expect.
+    CREATE TABLE fields (
+        id            TEXT PRIMARY KEY,
+        org_id        TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        aoi_id        TEXT NOT NULL REFERENCES aois(id) ON DELETE CASCADE,
+        name          TEXT NOT NULL,
+        use           TEXT NOT NULL DEFAULT '',
+        notes         TEXT NOT NULL DEFAULT '',
+        boundary_json TEXT NOT NULL,
+        fingerprint   TEXT NOT NULL,
+        area_km2      REAL NOT NULL,
+        min_lon REAL NOT NULL, min_lat REAL NOT NULL,
+        max_lon REAL NOT NULL, max_lat REAL NOT NULL,
+        active        INTEGER NOT NULL DEFAULT 1,
+        created_at    TEXT NOT NULL
+    );
+    CREATE INDEX idx_fields_aoi  ON fields(aoi_id);
+    CREATE INDEX idx_fields_org  ON fields(org_id);
+    CREATE INDEX idx_fields_bbox ON fields(min_lon, min_lat, max_lon, max_lat);
+    CREATE UNIQUE INDEX idx_fields_name ON fields(aoi_id, name);
+    """),
 ]
 
 

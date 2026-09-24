@@ -24,7 +24,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from enum import Enum
 
-from .geo import Ring, area_km2, bbox, centroid, validate_ring
+from .geo import Ring, area_km2, bbox, centroid, contains, validate_ring
 
 
 # ---------------------------------------------------------------------------
@@ -239,6 +239,84 @@ class Aoi:
                 f"AOI covers {self.area_km2:,.0f} km2; split it -- a baseline "
                 "over an area this large averages away the thing you are "
                 "looking for")
+        return issues
+
+
+@dataclass
+class Field:
+    """A named sub-area of an AOI: a parcel, a berth, a sector, a block.
+
+    Separate from `Aoi` rather than a self-reference, because the two are
+    genuinely different things. An AOI is the unit of tasking, coverage and
+    baselines -- what imagery is ordered over and what pattern of life is
+    learned for. A field is a unit of *meaning* inside it, and exists so a
+    finding reads "block D, north boundary" instead of a pair of coordinates.
+
+    Making fields into AOIs would multiply the tasking bill by the number of
+    parcels, which is exactly the invoice a customer does not expect, and would
+    build a separate baseline per parcel from a fraction of the observations.
+    """
+
+    id: str
+    org_id: str
+    aoi_id: str
+    name: str
+    boundary: Ring
+    use: str = ""
+    notes: str = ""
+    active: bool = True
+    created_at: datetime = field(default_factory=_now)
+
+    @property
+    def area_km2(self) -> float:
+        return area_km2(self.boundary)
+
+    @property
+    def area_hectares(self) -> float:
+        """What a farm or a site manager actually works in."""
+        return self.area_km2 * 100.0
+
+    @property
+    def centroid(self) -> tuple[float, float]:
+        return centroid(self.boundary)
+
+    @property
+    def bbox(self) -> tuple[float, float, float, float]:
+        return bbox(self.boundary)
+
+    @property
+    def fingerprint(self) -> str:
+        return _fingerprint(self.id,
+                            [(round(x, 7), round(y, 7)) for x, y in self.boundary])
+
+    def problems(self, within: "Aoi | None" = None) -> list[str]:
+        """Geometry problems, and whether this field is where it claims to be.
+
+        A field outside its AOI is not a rounding error: nothing will ever be
+        observed there, because imagery is only fetched for the AOI footprint.
+        It would sit in the interface looking monitored and never produce a
+        finding, which is the worst way for a system like this to be wrong.
+        """
+        issues = validate_ring(self.boundary)
+        if not self.name.strip():
+            issues.append("a field needs a name; it is how a finding gets "
+                          "reported to the person who works the ground")
+        if self.area_km2 > 5_000:
+            issues.append(
+                f"field covers {self.area_km2:,.0f} km2, which is larger than "
+                "most whole AOIs; it is probably meant to be an AOI of its own")
+        if within is not None:
+            if within.id != self.aoi_id:
+                issues.append(
+                    f"field claims AOI {self.aoi_id} but was checked against "
+                    f"{within.id}")
+            outside = [p for p in self.boundary if not contains(within.boundary, p)]
+            if outside:
+                issues.append(
+                    f"{len(outside)} of {len(self.boundary)} boundary points "
+                    f"fall outside AOI {within.id}; imagery is only fetched "
+                    "for the AOI footprint, so a field outside it would never "
+                    "be observed")
         return issues
 
 

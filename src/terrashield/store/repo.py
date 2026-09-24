@@ -26,11 +26,11 @@ from typing import Any, Iterable
 from ..baseline import Observation
 from ..domain import (
     Alert, AnomalyFinding, Aoi, AoiKind, ChangeEvent, ChangeType, Constellation,
-    Detection, ObjectClass, Organization, Report, ReviewStatus, Role, Scene,
-    Sensor, Severity, User, Watchlist,
+    Detection, Field, ObjectClass, Organization, Report, ReviewStatus, Role,
+    Scene, Sensor, Severity, User, Watchlist,
 )
 from ..evidence import EvidenceBundle
-from ..geo import bbox, centroid
+from ..geo import bbox, centroid, contains
 from .. import rbac
 from .schema import migrate
 
@@ -236,6 +236,104 @@ class Store:
             " AND max_lat >= ? AND min_lat <= ? ORDER BY name",
             (self._org(), min_lon, max_lon, min_lat, max_lat)).fetchall()
         return [self._aoi_from(r) for r in rows]
+
+    # -- fields ------------------------------------------------------------
+
+    def put_field(self, fld: Field) -> None:
+        """Create or update a field, checked against the AOI it belongs to.
+
+        The containment check is not cosmetic. Imagery is only ever fetched for
+        the AOI footprint, so a field drawn outside it can never be observed --
+        it would sit in the interface looking monitored and never once produce
+        a finding. Refusing it here is the only place that is cheap to fix.
+        """
+        rbac.same_tenant(self._org(), fld.org_id, f"field {fld.id}")
+        self._require("field.create")
+        parent = self.get_aoi(fld.aoi_id)
+        if parent is None:
+            raise StoreError(
+                f"field {fld.id} refers to AOI {fld.aoi_id}, which does not "
+                "exist in this organisation")
+        problems = fld.problems(parent)
+        if problems:
+            raise StoreError(f"field {fld.id} cannot be saved: "
+                             + "; ".join(problems))
+        min_lon, min_lat, max_lon, max_lat = bbox(fld.boundary)
+        with self.conn:
+            self.conn.execute(
+                "INSERT OR REPLACE INTO fields (id, org_id, aoi_id, name, use,"
+                " notes, boundary_json, fingerprint, area_km2, min_lon,"
+                " min_lat, max_lon, max_lat, active, created_at)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (fld.id, fld.org_id, fld.aoi_id, fld.name, fld.use, fld.notes,
+                 json.dumps(fld.boundary), fld.fingerprint, fld.area_km2,
+                 min_lon, min_lat, max_lon, max_lat,
+                 1 if fld.active else 0, _iso(fld.created_at)))
+        self.audit("field.upsert", fld.id,
+                   {"aoi_id": fld.aoi_id, "fingerprint": fld.fingerprint,
+                    "hectares": round(fld.area_hectares, 2)})
+
+    def _field_from(self, r: sqlite3.Row) -> Field:
+        return Field(id=r["id"], org_id=r["org_id"], aoi_id=r["aoi_id"],
+                     name=r["name"],
+                     boundary=[tuple(p) for p in json.loads(r["boundary_json"])],
+                     use=r["use"], notes=r["notes"], active=bool(r["active"]),
+                     created_at=_dt(r["created_at"]))
+
+    def get_field(self, field_id: str) -> Field | None:
+        r = self.conn.execute(
+            "SELECT * FROM fields WHERE id = ? AND org_id = ?",
+            (field_id, self._org())).fetchone()
+        return self._field_from(r) if r else None
+
+    def list_fields(self, aoi_id: str | None = None,
+                    active_only: bool = True) -> list[Field]:
+        sql = "SELECT * FROM fields WHERE org_id = ?"
+        args: list = [self._org()]
+        if aoi_id:
+            sql += " AND aoi_id = ?"
+            args.append(aoi_id)
+        if active_only:
+            sql += " AND active = 1"
+        rows = self.conn.execute(sql + " ORDER BY name", args).fetchall()
+        return [self._field_from(r) for r in rows]
+
+    def field_at(self, lon: float, lat: float,
+                 aoi_id: str | None = None) -> Field | None:
+        """Which field a point falls in, if any.
+
+        This is what turns a change event's centroid into "block D". The bbox
+        filter runs in SQL and the point-in-polygon test runs here, because
+        there is no spatial index without PostGIS -- the same trade `aois_
+        intersecting` makes, and fine at the number of fields one AOI holds.
+        """
+        sql = ("SELECT * FROM fields WHERE org_id = ? AND active = 1"
+               " AND min_lon <= ? AND max_lon >= ? AND min_lat <= ? AND max_lat >= ?")
+        args: list = [self._org(), lon, lon, lat, lat]
+        if aoi_id:
+            sql += " AND aoi_id = ?"
+            args.append(aoi_id)
+        for r in self.conn.execute(sql, args).fetchall():
+            fld = self._field_from(r)
+            if contains(fld.boundary, (lon, lat)):
+                return fld
+        return None
+
+    def deactivate_field(self, field_id: str) -> bool:
+        """Retire a field without deleting it.
+
+        Findings already attributed to it keep their reference, which is why
+        this is not a DELETE: an evidence bundle that names a field nobody can
+        look up is a bundle that fails its own audit.
+        """
+        self._require("field.update")
+        with self.conn:
+            cur = self.conn.execute(
+                "UPDATE fields SET active = 0 WHERE id = ? AND org_id = ?",
+                (field_id, self._org()))
+        if cur.rowcount:
+            self.audit("field.deactivate", field_id, {})
+        return cur.rowcount > 0
 
     # -- watchlists --------------------------------------------------------
 
