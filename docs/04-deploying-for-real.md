@@ -108,3 +108,56 @@ Not built, and all deployment-shaped:
   install is a copy of a directory plus a Python interpreter. What it needs is
   an imagery delivery path — physical media, or a one-way diode — and a
   `Provider` that reads from a local archive rather than an API.
+
+## Identity, and what to replace
+
+`accounts.py` provides sign-up, sign-in and sessions so a pilot can start
+without an identity provider. It is not an identity provider, and a government
+deployment will not use it as one. What it does not do, deliberately:
+
+- no email verification, so an address is unproven until someone checks it;
+- no password reset, which needs a mail path this system does not have;
+- no MFA, no OAuth, no SAML, no SCIM provisioning;
+- no lockout or rate limiting on repeated failures — that belongs at the edge,
+  where the source address is visible, not in the application.
+
+The seam is `Accounts.resolve_session`. Everything above it takes
+`(org, actor, role)` and does not care how they were established, so federating
+to a customer directory means replacing that one method and the three routes in
+`_PUBLIC_ROUTES`. Those routes are in a separate registry precisely so that
+"what can be reached without signing in" is a list you can read rather than a
+property you have to derive from the routing table.
+
+When you do federate, delete the sign-up route rather than guarding it. An
+unused registration endpoint is unused attack surface, and `serve()` already
+takes `allow_signup=False` for that case.
+
+Two things it does get right and that a replacement must keep: session tokens
+are stored as SHA-256 digests and never as tokens, so a stolen database yields
+no usable sessions; and every login failure returns one identical status and
+message, with the unknown-address path still performing a dummy verify so it
+does not answer faster either.
+
+## Areas and fields
+
+An **area** (`Aoi`) is the unit of tasking, coverage and baselines: it is what
+imagery is ordered over and what pattern of life is learned for. A **field** is
+a named sub-polygon of one — a parcel, a berth, a sector, a block — and exists
+so a finding reads "Block D" instead of a pair of coordinates.
+
+Fields are deliberately not areas. Promoting every parcel to an AOI would
+multiply the imagery bill by the number of parcels and build each baseline from
+a fraction of the observations, which is both more expensive and less accurate.
+
+A field whose boundary falls outside its area is refused at creation. Imagery
+is only ever fetched for the AOI footprint, so such a field would sit in the
+interface looking monitored and never once produce a finding — the worst
+available way for a monitoring system to be wrong, because nothing about it
+looks broken.
+
+`Store.field_at(lon, lat)` is what turns a change centroid into a field name.
+It filters on the bbox columns in SQL and runs point-in-polygon in Python, the
+same trade `aois_intersecting` makes, and for the same reason: there is no
+spatial index without PostGIS. At the number of fields one area holds this is
+not the bottleneck; at national scale it is, and the fix is the PostGIS move
+described above.

@@ -26,9 +26,13 @@ world are not connected. Both halves of that sentence matter.
 
 | | |
 |---|---|
-| Analysis engines — detect, change, baseline, anomaly, risk, alerts, evidence | **Built**, 189 tests |
-| Store, RBAC, hash-chained audit, HTTP API (18 endpoints), CLI | **Built** |
+| Analysis engines — detect, change, baseline, anomaly, risk, alerts, evidence | **Built** |
+| Store, RBAC, hash-chained audit, CLI | **Built** |
+| Accounts: sign-up, sign-in, sessions, password changes | **Built** — scrypt, digest-only tokens |
+| Areas and fields: create, list, validate, retire, point lookup | **Built** |
+| HTTP API — 26 routes, 3 of them unauthenticated by design | **Built** |
 | Console | **Built** — a static page, committed with its dataset |
+| Console wired to the live API | **Not built** — the page ships its data inline |
 | Imagery ingestion from a real provider | **Not built** — `SyntheticProvider` is the only implementation |
 | Alert delivery (email, webhook) | **Not built** — rules declare it, nothing sends |
 | Learned detection models | **Not built** — the detector is classical, and is a baseline to beat |
@@ -103,7 +107,8 @@ are hash-chained and verify.
 | `src/terrashield/evaluate.py` | Precision, recall, calibration — the measurement |
 | `dashboard/` | The console: map, queue, site pages, change viewer |
 | `docs/` | The notes below |
-| `tests/` | 189 tests, stdlib only |
+| `src/terrashield/accounts.py` | Passwords, sessions, sign-up |
+| `tests/` | Tests, stdlib only |
 
 ## The demo estate
 

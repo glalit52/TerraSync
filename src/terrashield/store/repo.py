@@ -328,8 +328,13 @@ class Store:
         """
         self._require("field.update")
         with self.conn:
+            #: `active = 1` in the predicate, so the return value means "this
+            #: call retired it" rather than "a row with that id exists". Without
+            #: it, retiring twice reports success twice and the caller cannot
+            #: tell a real retirement from a no-op.
             cur = self.conn.execute(
-                "UPDATE fields SET active = 0 WHERE id = ? AND org_id = ?",
+                "UPDATE fields SET active = 0 "
+                "WHERE id = ? AND org_id = ? AND active = 1",
                 (field_id, self._org()))
         if cur.rowcount:
             self.audit("field.deactivate", field_id, {})
