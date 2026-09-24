@@ -275,3 +275,35 @@ def test_areas_and_fields_are_scoped_to_the_tenant(signed_in, db):
                   role=Role.ADMIN)
     assert call(other, "GET", "/api/sites")[1]["sites"] == []
     assert call(other, "GET", f"/api/sites/{aoi_id}/fields")[0] == 404
+
+
+# ---------------------------------------------------------------------------
+# Serving
+# ---------------------------------------------------------------------------
+
+def test_serving_with_no_accounts_is_refused_even_with_signup_enabled(
+        tmp_path, monkeypatch):
+    """Open registration is a way in, not a substitute for having one.
+
+    A server with no accounts and self-service sign-up is a server anyone who
+    reaches the port can enrol on, which is the same failure as serving
+    unauthenticated by a slightly longer route.
+    """
+    from terrashield.api import serve
+    monkeypatch.delenv("TERRASHIELD_TOKEN", raising=False)
+    with pytest.raises(SystemExit, match="refusing to serve"):
+        serve(str(tmp_path / "empty.db"), allow_signup=True)
+
+
+def test_signup_is_off_unless_it_is_asked_for(tmp_path, monkeypatch, db,
+                                              accounts):
+    """The route exists; whether it is reachable is a deployment decision."""
+    import inspect
+    from terrashield.api import make_handler, serve
+
+    assert inspect.signature(serve).parameters["allow_signup"].default is False
+
+    #: make_handler is given an accounts factory only when signup is allowed,
+    #: which is what gates the public routes.
+    handler = make_handler(lambda token: None)
+    assert handler is not None

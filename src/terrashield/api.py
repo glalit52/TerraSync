@@ -655,7 +655,7 @@ def make_handler(store_factory: Callable[[str], Store],
 
 def serve(db_path: str, host: str = "127.0.0.1", port: int = 8787,
           org_id: str = "", token_map: dict[str, tuple[str, str, Role]] | None = None,
-          allow_signup: bool = True) -> None:
+          allow_signup: bool = False) -> None:
     """Run the API.
 
     Identity comes from a session token issued by /api/auth/login, resolved
@@ -679,20 +679,24 @@ def serve(db_path: str, host: str = "127.0.0.1", port: int = 8787,
         migrate(conn)
         return conn
 
-    #: Sign-up is only a way in if the deployment has accounts at all. A
-    #: database with no users and no static token is refused below rather than
-    #: served open.
+    #: Self-service registration is off unless asked for. It is a way in:
+    #: anyone who can reach the port could create an organisation and a
+    #: session. That is right for a hosted pilot and wrong for a monitoring
+    #: server inside a facility, and the safe direction for the default to
+    #: fail in is closed.
     probe = _connect()
     try:
         users = probe.execute("SELECT COUNT(*) FROM users "
                               "WHERE password_hash != ''").fetchone()[0]
     finally:
         probe.close()
-    if not tokens and not users and not allow_signup:
+    if not tokens and not users:
         raise SystemExit(
             "refusing to serve without authentication: create a user, pass "
-            "token_map, set TERRASHIELD_TOKEN with an organisation id, or "
-            "start with allow_signup=True to enable self-service registration")
+            "token_map, or set TERRASHIELD_TOKEN together with an "
+            "organisation id. Self-service registration (allow_signup=True) "
+            "is a way in, not a substitute for having one -- a server with no "
+            "accounts and open registration is a server anyone can enrol on.")
 
     def accounts_factory() -> Accounts:
         return Accounts(_connect())

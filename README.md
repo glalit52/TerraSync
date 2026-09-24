@@ -33,7 +33,7 @@ world are not connected. Both halves of that sentence matter.
 | HTTP API — 26 routes, 3 of them unauthenticated by design | **Built** |
 | Console | **Built** — a static page, committed with its dataset |
 | Console wired to the live API | **Not built** — the page ships its data inline |
-| Imagery ingestion from a real provider | **Not built** — `SyntheticProvider` is the only implementation |
+| Imagery providers — 7 vendors, selected by one variable | **Built** — catalogue search; pixel reads need the `imagery` extra |
 | Alert delivery (email, webhook) | **Not built** — rules declare it, nothing sends |
 | Learned detection models | **Not built** — the detector is classical, and is a baseline to beat |
 | Forecasting | **Deliberately absent** — see `docs/02-responsible-use.md` |
@@ -55,6 +55,50 @@ beat the detector on real imagery and should replace it behind the same
 interface. `evaluate.py` exists so you can tell whether it did.
 
 `docs/04-deploying-for-real.md` is the ordered list of what to change.
+
+## Imagery providers
+
+Free by default, no account and no key:
+
+```bash
+terrashield providers            # what exists, what is usable, what is missing
+terrashield providers --check    # and can the selected one actually be reached
+```
+
+Almost every vendor worth integrating exposes a STAC catalogue with the same
+property extensions, so this is one client and a table of presets rather than
+seven integrations. Switching vendor is one environment variable; nothing above
+`catalog.Provider` changes, which is the property the whole design is for.
+
+| Provider | Cost | Access | Missions |
+|---|---|---|---|
+| `earth-search` *(default)* | free | no account | Sentinel-1, Sentinel-2, Landsat |
+| `planetary-computer` | free | no account | Sentinel-1, Sentinel-2, Landsat |
+| `cdse` | free | free registration | Sentinel-1, Sentinel-2 |
+| `sentinel-hub` | paid | account | Sentinel-1, Sentinel-2 |
+| `planet` | paid | account | PlanetScope 3 m, SkySat 50 cm |
+| `maxar` | paid | account | WorldView 30 cm |
+| `umbra` | paid | account | tasked sub-metre SAR |
+| `synthetic` | free | offline | the modelled estate |
+
+Adding a subscription later is two environment variables and one setting — no
+code:
+
+```bash
+export TERRASHIELD_PROVIDER=planet
+export TERRASHIELD_PLANET_API_KEY=...
+```
+
+Secrets are read from the environment only, never from a file, because a file
+gets committed and the failure is silent and permanent. `terrashield providers`
+prints which variables are still needed and never echoes a value.
+
+**Caveat worth reading.** The catalogue search is covered by 30 tests against
+recorded vendor response shapes, but has not yet been run against a live
+endpoint from this repository — so treat the first real call as the thing that
+confirms it, and `terrashield providers --check` is that call. Reading pixels
+needs `pip install "terrashield[imagery]"`; without it the search still works,
+so coverage and revisit planning are available and only the pixels are not.
 
 ## What it does
 

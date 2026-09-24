@@ -377,7 +377,7 @@ def cmd_serve(args) -> int:
     tokens = {args.token: (args.org, args.actor or "api", Role.ANALYST)} \
         if args.token else None
     serve(args.db, host=args.host, port=args.port, org_id=args.org,
-          token_map=tokens)
+          token_map=tokens, allow_signup=args.allow_signup)
     return 0
 
 
@@ -495,12 +495,22 @@ def build_parser() -> argparse.ArgumentParser:
     q.add_argument("--scenes", type=int, default=3)
     q.set_defaults(fn=cmd_evaluate)
 
+    q = sub.add_parser("providers", help="imagery sources, and what each needs")
+    q.add_argument("--check", action="store_true",
+                   help="contact the selected provider as well as reporting "
+                        "configuration")
+    q.set_defaults(fn=cmd_providers)
+
     q = sub.add_parser("verify", help="check the audit chain")
     q.set_defaults(fn=cmd_verify)
 
     q = sub.add_parser("serve", help="run the HTTP API")
     q.add_argument("--host", default="127.0.0.1")
     q.add_argument("--port", type=int, default=8787)
+    q.add_argument("--allow-signup", action="store_true",
+                   help="enable self-service registration at "
+                        "POST /api/auth/signup. Off by default: it is a way "
+                        "in, and anyone who can reach the port could use it")
     q.add_argument("--token", default="")
     q.set_defaults(fn=cmd_serve)
 
@@ -510,6 +520,58 @@ def build_parser() -> argparse.ArgumentParser:
     q.add_argument("--to", default="2026-04-12")
     q.set_defaults(fn=cmd_demo)
     return p
+
+
+def cmd_providers(args) -> int:
+    """Which imagery sources exist, which are usable, and what is missing.
+
+    Deliberately reports configuration without contacting anyone, because that
+    is the question somebody setting the product up is asking and it has to
+    work with no network. `--check` adds the live call.
+    """
+    from . import providers as prov
+
+    report = prov.status()
+    print(f"selected  {report['selected']}   "
+          f"(change with {report['select_with']})")
+    print(f"{'':2}{'name':20} {'cost':5} {'access':8} {'ready':6} missions")
+    print("  " + "-" * 74)
+    for entry in report["providers"]:
+        mark = "->" if entry["selected"] else "  "
+        cost = "free" if entry["free"] else "paid"
+        access = "account" if entry["needs_account"] else "open"
+        ready = "yes" if entry["ready"] else "no"
+        missions = ", ".join(entry["constellations"])
+        print(f"{mark}{entry['name']:20} {cost:5} {access:8} {ready:6} {missions}")
+        if entry["missing"]:
+            print(f"{'':22} set: {', '.join(entry['missing'])}")
+
+    print()
+    print("  synthetic            free  open     yes    the modelled estate, "
+          "offline")
+    print()
+    ready = [e["name"] for e in report["providers"] if e["ready"]]
+    print(f"usable now: {', '.join(['synthetic'] + ready)}")
+
+    if not args.check:
+        print("\nRun with --check to contact the selected provider.")
+        return 0
+
+    provider = prov.resolve()
+    if not hasattr(provider, "health"):
+        print("\nselected provider is the modelled estate; nothing to contact")
+        return 0
+    print(f"\ncontacting {report['selected']} ...")
+    health = provider.health()
+    if health.get("reachable"):
+        print(f"  reachable. collections present: "
+              f"{', '.join(health.get('collections_present') or []) or 'none'}")
+        missing = health.get("collections_missing") or []
+        if missing:
+            print(f"  not found at this endpoint: {', '.join(missing)}")
+        return 0
+    print(f"  NOT reachable: {health.get('detail', 'unknown')}")
+    return 1
 
 
 def main(argv: list[str] | None = None) -> int:

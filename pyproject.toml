@@ -19,6 +19,15 @@ dependencies = []
 [project.optional-dependencies]
 dev = ["pytest>=8"]
 
+# Reading real imagery. Optional on purpose: the analysis core and the
+# catalogue search both work without it, so an on-premise install stays a copy
+# rather than a procurement exercise. What this adds is windowed reads out of
+# cloud-optimised GeoTIFFs -- HTTP range requests, tile tables, several codecs
+# and a reprojection -- which is GDAL's job. Reimplementing that unverified is
+# how a pipeline gets silently wrong pixels instead of an error, and wrong
+# pixels here look exactly like real change.
+imagery = ["rasterio>=1.3"]
+
 [project.scripts]
 terrashield = "terrashield.cli:main"
 
