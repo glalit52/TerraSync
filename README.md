@@ -31,12 +31,14 @@ world are not connected. Both halves of that sentence matter.
 | Accounts: sign-up, sign-in, sessions, password changes | **Built** — scrypt, digest-only tokens |
 | Areas and fields: create, list, validate, retire, point lookup | **Built** |
 | HTTP API — 26 routes, 3 of them unauthenticated by design | **Built** |
-| Console | **Built** — a static page, committed with its dataset |
-| Console wired to the live API | **Not built** — the page ships its data inline |
+| Web application — sign in, areas, fields, alerts, review, copilot | **Built** — served by the API process |
+| Console (static report page) | **Built** — committed with its dataset |
+| Sensing limits — what each platform can resolve | **Built** |
+| Projection of a measured trend | **Built** — refused where the data cannot support one |
 | Imagery providers — 7 vendors, selected by one variable | **Built** — catalogue search; pixel reads need the `imagery` extra |
 | Alert delivery (email, webhook) | **Not built** — rules declare it, nothing sends |
 | Learned detection models | **Not built** — the detector is classical, and is a baseline to beat |
-| Forecasting | **Deliberately absent** — see `docs/02-responsible-use.md` |
+| Autonomous agents, knowledge graph, AIS, OSINT | **Not built** — the next increment |
 
 Two things follow from that table and are easy to miss:
 
@@ -55,6 +57,66 @@ beat the detector on real imagery and should replace it behind the same
 interface. `evaluate.py` exists so you can tell whether it did.
 
 `docs/04-deploying-for-real.md` is the ordered list of what to change.
+
+## Running it
+
+```bash
+pip install -e ".[dev]"
+
+# Create the first account, from the machine that owns the database.
+# `serve` refuses to start with no accounts, and the alternative -- opening
+# registration on a server nobody has an account on -- is a server anyone who
+# reaches the port can enrol on.
+terrashield --db terrashield.db register --org "Your Org" --email you@example.com
+
+terrashield --db terrashield.db serve      # then open http://127.0.0.1:8787
+```
+
+The web application is served by the same process as the API: one origin, no
+CORS to misconfigure, and the whole product is one artefact to install. It is
+plain HTML and JavaScript with no build step and no outbound request, because
+it has to open inside a facility with no route to the internet and no npm
+registry. A later React rewrite reuses this API contract unchanged — the
+contract is the durable part, not the rendering.
+
+## What can actually be seen
+
+```bash
+terrashield sensing                  # the whole matrix
+terrashield sensing --target person  # and the reasoning
+```
+
+Resolution decides what is possible, and a target below its platform's limit is
+not recovered by a better model — the information is not in the data. Two
+requests come up often enough to answer directly:
+
+**People cannot be seen from orbit, at any price.** A standing adult is about
+0.5 m; at Sentinel's 10 m that is one four-hundredth of a pixel by area, and
+even at the sharpest commercial optical available — about 30 cm — a person
+spans one to two pixels. UAV imagery at 2–5 cm can, and carries privacy
+obligations satellite monitoring does not.
+
+**Drones in flight cannot either**, and for a second reason: sub-pixel *and*
+moving, so a satellite's integration time smears them into the background.
+Airborne drone detection is an RF or radar problem. What imagery does find is
+the ground signature — launch sites, control stations, apron activity.
+
+And a distinction worth holding: satellites revisit in days, so vehicle
+*counting* per pass is a real capability and vehicle *tracking* between passes
+is not.
+
+## Projection, not prediction
+
+`terrashield` projects a measured trend forward and refuses where the history
+cannot support one — under six observations, a straight-line fit below R² 0.30,
+or a horizon more than half the observed span past the record. A projection is
+a `Band` with no point-estimate field to read on its own, every headline opens
+"if the observed trend continues", and every payload carries the assumption
+that the system cannot verify why the number moved.
+
+This crosses a line `docs/02-responsible-use.md` originally drew. It was added
+on an explicit decision, and that document records both the decision and the
+guardrails that survived it.
 
 ## Imagery providers
 

@@ -83,8 +83,12 @@ REFUSALS: tuple[tuple[re.Pattern, str], ...] = (
      "TerraShield is an analyst-assistance and monitoring system. It does not "
      "support targeting or engagement workflows"),
     (re.compile(r"\b(predict|forecast|will happen|going to happen)\b", re.I),
-     "no forecasting model is in use. Trends over the observed window are "
-     "available and are described as trends, not predictions"),
+     "this system does not predict what will happen. It can project a measured "
+     "trend forward -- ask for a projection and you get a range with a "
+     "confidence interval, the fit it rests on, and the assumption that "
+     "whatever drove the observed change continues, which nothing here can "
+     "verify. It is refused outright where the history is too short, too "
+     "scattered, or the horizon reaches past what the data supports"),
 )
 
 

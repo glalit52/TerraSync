@@ -23,6 +23,12 @@ if [ -d dashboard/chips ]; then
   cp -r dashboard/chips public/chips
 fi
 
+# The web application is deliberately NOT copied here. It is useless without
+# the API behind it -- it would render a login box that can never authenticate
+# -- and publishing a sign-in page that cannot work is worse than publishing
+# nothing. `terrashield serve` is what serves it, from the same process as the
+# API it talks to.
+
 # Findings about real named places, produced from modelled imagery. Not
 # something to hand to a crawler.
 cat > public/robots.txt <<'ROBOTS'

@@ -202,7 +202,7 @@ def test_removing_a_bundle_breaks_the_manifest(monitored):
     ("Is this a threat to the border?", "does not assess intent"),
     ("Whose facility is this?", "attribution of ownership"),
     ("Should we target the new structure?", "does not support targeting"),
-    ("Predict what will happen next month", "no forecasting model"),
+    ("Predict what will happen next month", "does not predict"),
 ])
 def test_the_copilot_refuses_questions_imagery_cannot_answer(
         monitored, question, fragment):
@@ -211,6 +211,27 @@ def test_the_copilot_refuses_questions_imagery_cannot_answer(
     assert answer.intent == "refused"
     assert answer.text == ""
     assert fragment in answer.unsupported
+
+
+def test_the_prediction_refusal_describes_what_projection_actually_does(
+        monitored):
+    """The refusal has to stay true as the product changes.
+
+    It used to say "no forecasting model is in use", which was accurate until
+    forecast.py existed and false afterwards. A stale refusal is worse than
+    either position: it tells an analyst the system cannot do something it can,
+    and the next person to notice assumes the rest of the refusals are stale
+    too.
+    """
+    _, store, _, _ = monitored
+    answer = copilot.ask(store, "Predict what will happen next month")
+    assert "no forecasting model is in use" not in answer.unsupported
+    #: still refuses to predict, but names the projection and its conditions
+    assert "does not predict" in answer.unsupported
+    assert "project" in answer.unsupported
+    assert "confidence interval" in answer.unsupported
+    for condition in ("too short", "scattered", "past what the data supports"):
+        assert condition in answer.unsupported, condition
 
 
 @pytest.mark.parametrize("phrasing", [

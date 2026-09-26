@@ -39,9 +39,24 @@ system answers with a reason rather than an approximation:
 | whose facility, who built, which country | attribution of ownership cannot be derived from imagery |
 | threat, hostile, enemy, intent, planning | this system measures deviation from a site's own history and does not assess intent |
 | target, targeting, strike, engage, weapon | TerraShield is an analyst-assistance and monitoring system |
-| predict, forecast, will happen | no forecasting model is in use; trends are described as trends |
+| predict, forecast, will happen | the system does not predict; it projects a measured trend as a range with its interval, assumption and fit, and refuses where the data cannot support one |
 
 Each refusal names what the system *can* answer instead. Tests cover all four.
+
+**Projection is separated from prediction, in the type system.** Forecasting
+was added on an explicit product decision, against the position this document
+originally took. The concern it was built to answer survives in three places.
+`forecast.Projection` has no point-estimate field: the value is a `Band`, and
+the narrowest question it answers is "what range, at what confidence" — there
+is a test asserting no serialised key invites reading a single number. A
+projection is *refused* rather than widened when the history is under six
+observations, fits a line at R² below 0.30, or the horizon reaches more than
+half the observed span past the record; a wide interval invites a reader to
+take its midpoint, and a refusal does not. And the language is conditional by
+construction — every headline opens "if the observed trend continues", every
+payload carries `is_projection: true` and the assumption that the system cannot
+verify why the number moved, and a test asserts the words *will*, *predicts*
+and *forecast to be* never appear in generated text.
 
 **Every anomaly bundle carries the caveat.** `evidence.for_anomaly` appends,
 to every bundle it builds, that the finding is a statistical deviation from the

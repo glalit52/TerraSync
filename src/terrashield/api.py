@@ -24,6 +24,7 @@ import traceback
 import uuid
 from datetime import date, datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from typing import Any, Callable
 from urllib.parse import parse_qs, urlparse
 
@@ -587,6 +588,88 @@ def dispatch_public(accounts: Accounts, method: str, path: str,
     return 0, {}
 
 
+# ---------------------------------------------------------------------------
+# Sensing limits and projection
+# ---------------------------------------------------------------------------
+
+@route("GET", "/api/sensing")
+def api_sensing(store: Store, params: dict, **_) -> dict:
+    """What can be resolved, by which platform, for what task.
+
+    Public-facing on purpose. The commonest way a geospatial product loses a
+    customer's trust is accepting a request it cannot satisfy and returning an
+    empty result, which reads as "we looked and there was nothing" rather than
+    "no sensor can see that".
+    """
+    from . import sensing                                   # noqa: PLC0415
+
+    raw = _one(params, "task", sensing.Task.DETECT.value)
+    try:
+        task = sensing.Task(raw)
+    except ValueError as e:
+        raise ApiError(400, f"{raw!r} is not a known task",
+                       "one of: " + ", ".join(t.value for t in sensing.Task)
+                       ) from e
+
+    target = _one(params, "target", "")
+    if target:
+        try:
+            return {"task": task.value, "target": target,
+                    "explanation": sensing.explain(target, task),
+                    "platforms": [p.value
+                                  for p in sensing.platforms_for(target, task)],
+                    "verdicts": [sensing.assess(target, task, p).to_dict()
+                                 for p in sensing.GSD_M]}
+        except KeyError as e:
+            raise ApiError(404, str(e).strip("\"'")) from e
+    return {"task": task.value, "matrix": sensing.capability_matrix(task)}
+
+
+@route("GET", "/api/sites/{aoi_id}/projection")
+def api_projection(store: Store, aoi_id: str, params: dict, **_) -> dict:
+    """Project a measured metric forward, or say why it cannot be projected.
+
+    A refusal is a 200 with `is_projection: false` and the reason, not an
+    error: "we cannot project this because the series is scatter" is a
+    legitimate answer to render.
+    """
+    from .forecast import DEFAULT_CONFIDENCE, Z_FOR, try_project  # noqa: PLC0415
+
+    if store.get_aoi(aoi_id) is None:
+        raise ApiError(404, f"no monitored area {aoi_id}")
+    metric = _one(params, "metric", "")
+    if not metric:
+        raise ApiError(400, "metric is required")
+
+    horizon = _date(params, "to")
+    if horizon is None:
+        raise ApiError(400, "to is required",
+                       "the date to project to, as 2026-05-20")
+    try:
+        confidence = int(_one(params, "confidence", str(DEFAULT_CONFIDENCE)))
+    except ValueError as e:
+        raise ApiError(400, "confidence must be a number") from e
+    if confidence not in Z_FOR:
+        raise ApiError(400, f"confidence must be one of {sorted(Z_FOR)}")
+
+    history = store.list_observations(aoi_id, metric=metric)
+    result = try_project(aoi_id, metric, history, horizon, confidence)
+    return result if isinstance(result, dict) else result.to_dict()
+
+
+#: Where the web application lives, relative to the installed package. Read
+#: from disk on each request rather than cached, so editing the page during
+#: development does not need a restart; it is one file and the cost is a read.
+WEBAPP = Path(__file__).resolve().parents[2] / "webapp" / "index.html"
+
+
+def _webapp() -> bytes | None:
+    try:
+        return WEBAPP.read_bytes()
+    except OSError:
+        return None
+
+
 def make_handler(store_factory: Callable[[str], Store],
                  accounts_factory: Callable[[], Accounts] | None = None):
     class TerraShieldHandler(BaseHTTPRequestHandler):
@@ -617,6 +700,30 @@ def make_handler(store_factory: Callable[[str], Store],
                     except json.JSONDecodeError:
                         self._send(400, {"error": "request body is not valid JSON"})
                         return
+            #: The web application, served by the same process as the API.
+            #: One origin means no CORS to configure and nothing to get wrong
+            #: about credentials crossing origins, and it means the whole
+            #: product is one artefact to install.
+            if method == "GET" and url.path in ("/", "/index.html", "/app"):
+                page = _webapp()
+                if page is None:
+                    self._send(404, {"error": "web application not installed"})
+                    return
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(page)))
+                self.send_header("X-Content-Type-Options", "nosniff")
+                #: No inline frames, no outbound anything. The page is already
+                #: written to make no external request; this makes it policy.
+                self.send_header(
+                    "Content-Security-Policy",
+                    "default-src 'self'; script-src 'self' 'unsafe-inline'; "
+                    "style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
+                    "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'")
+                self.end_headers()
+                self.wfile.write(page)
+                return
+
             token = self._token()
 
             if accounts_factory is not None:
@@ -692,11 +799,14 @@ def serve(db_path: str, host: str = "127.0.0.1", port: int = 8787,
         probe.close()
     if not tokens and not users:
         raise SystemExit(
-            "refusing to serve without authentication: create a user, pass "
-            "token_map, or set TERRASHIELD_TOKEN together with an "
-            "organisation id. Self-service registration (allow_signup=True) "
-            "is a way in, not a substitute for having one -- a server with no "
-            "accounts and open registration is a server anyone can enrol on.")
+            "refusing to serve without authentication. Create the first "
+            "account from this machine:\n"
+            "    terrashield --db <db> register --org '<name>' --email <you>\n"
+            "or pass token_map, or set TERRASHIELD_TOKEN with an organisation "
+            "id. Self-service registration (allow_signup=True) is a way in, "
+            "not a substitute for having one -- a server with no accounts and "
+            "open registration is a server anyone who reaches the port can "
+            "enrol on.")
 
     def accounts_factory() -> Accounts:
         return Accounts(_connect())

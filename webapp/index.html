@@ -1,0 +1,791 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TerraShield</title>
+<!--
+  No build step, no framework, no outbound request of any kind.
+
+  The proposals specify Next.js, and for a team of five that is the right
+  answer. This is built as one static page for two reasons that outlast the
+  framework choice: it has to open inside a facility with no route to the
+  internet and no npm registry, and every byte it needs is served by the same
+  process that serves the API. A later React rewrite reuses this API contract
+  unchanged -- the contract is the durable part, not the rendering.
+-->
+<style>
+  :root{
+    color-scheme: dark;
+    --ground:#070D14; --surface:#0D1520; --surface-2:#131E2B; --sunken:#0A111A;
+    --ink:#E8EFF5; --ink-2:#B4C4D2; --muted:#7B8B9C;
+    --line:#1E2C3C; --line-soft:#17222E;
+    --accent:#A3D948; --accent-soft:#a3d94816; --accent-line:#a3d94840;
+    --critical:#FF6B4A; --critical-soft:#ff6b4a18;
+    --high:#FFA033; --high-soft:#ffa03318;
+    --medium:#4FB3F5; --medium-soft:#4fb3f518;
+    --low:#7B8B9C; --low-soft:#7b8b9c18;
+    --f-body:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    --f-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"DejaVu Sans Mono",monospace;
+  }
+  *{box-sizing:border-box}
+  body{background:var(--ground);color:var(--ink);font-family:var(--f-body);
+       font-size:14px;line-height:1.55;margin:0}
+  a{color:var(--accent);text-decoration:none}
+  button{font:inherit;cursor:pointer;border-radius:7px;border:1px solid var(--line);
+         background:var(--surface-2);color:var(--ink);padding:7px 13px}
+  button:hover{border-color:var(--accent-line)}
+  button.primary{background:var(--accent);color:#08140a;border-color:var(--accent);font-weight:600}
+  button.ghost{background:transparent}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  input,select,textarea{font:inherit;background:var(--sunken);color:var(--ink);
+       border:1px solid var(--line);border-radius:7px;padding:9px 11px;width:100%}
+  textarea{font-family:var(--f-mono);font-size:12px;min-height:110px;resize:vertical}
+  label{display:block;font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+        color:var(--muted);margin:14px 0 5px;font-family:var(--f-mono)}
+  .mono{font-family:var(--f-mono)}
+  .muted{color:var(--muted)}
+  .hide{display:none !important}
+
+  /* -- shell -- */
+  #shell{display:grid;grid-template-columns:212px 1fr;min-height:100vh}
+  nav{background:var(--surface);border-right:1px solid var(--line);padding:18px 0;
+      display:flex;flex-direction:column}
+  .brand{padding:0 18px 18px;font-size:17px;font-weight:700;letter-spacing:-.01em}
+  .brand b{color:var(--accent)}
+  nav a{display:block;padding:8px 18px;color:var(--ink-2);font-size:13px;border-left:2px solid transparent}
+  nav a:hover{background:var(--surface-2)}
+  nav a.on{border-left-color:var(--accent);background:var(--accent-soft);color:var(--ink)}
+  .navfoot{margin-top:auto;padding:14px 18px;border-top:1px solid var(--line);font-size:11.5px}
+  main{padding:26px 30px;max-width:1280px}
+  h1{font-size:21px;margin:0 0 3px}
+  h2{font-size:15px;margin:26px 0 10px}
+  .sub{color:var(--muted);font-size:12.5px;margin-bottom:20px}
+
+  /* -- pieces -- */
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+         gap:1px;background:var(--line);border:1px solid var(--line);border-radius:9px;
+         overflow:hidden;margin-bottom:22px}
+  .card{background:var(--surface);padding:14px 16px}
+  .card .k{font-family:var(--f-mono);font-size:10px;letter-spacing:.1em;
+           text-transform:uppercase;color:var(--muted)}
+  .card .v{font-size:25px;font-weight:600;margin-top:3px}
+  .card .n{font-size:11.5px;color:var(--muted)}
+
+  .panel{background:var(--surface);border:1px solid var(--line);border-radius:9px;
+         padding:16px 18px;margin-bottom:16px}
+  .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:900px){.grid2{grid-template-columns:1fr}
+    #shell{grid-template-columns:1fr} nav{flex-direction:row;overflow-x:auto}
+    .navfoot{display:none} main{padding:18px 16px}}
+
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;font-family:var(--f-mono);font-size:10px;letter-spacing:.09em;
+     text-transform:uppercase;color:var(--muted);padding:8px 10px;
+     border-bottom:1px solid var(--line)}
+  td{padding:9px 10px;border-bottom:1px solid var(--line-soft);vertical-align:top}
+  tr:hover td{background:var(--surface-2)}
+  td.num{text-align:right;font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+
+  .tag{display:inline-block;font-family:var(--f-mono);font-size:10px;padding:2px 7px;
+       border-radius:4px;border:1px solid var(--line);letter-spacing:.05em}
+  .t-critical{color:var(--critical);background:var(--critical-soft);border-color:#ff6b4a40}
+  .t-high{color:var(--high);background:var(--high-soft);border-color:#ffa03340}
+  .t-medium{color:var(--medium);background:var(--medium-soft);border-color:#4fb3f540}
+  .t-low{color:var(--low);background:var(--low-soft)}
+  .prio{font-family:var(--f-mono);font-weight:600;width:26px;height:26px;
+        display:inline-flex;align-items:center;justify-content:center;border-radius:6px;
+        border:1px solid var(--line)}
+
+  .notice{padding:11px 14px;border-radius:8px;font-size:13px;margin:12px 0;
+          border:1px solid var(--line)}
+  .err{color:var(--critical);background:var(--critical-soft);border-color:#ff6b4a40}
+  .ok{color:var(--accent);background:var(--accent-soft);border-color:var(--accent-line)}
+  .warn{color:var(--high);background:var(--high-soft);border-color:#ffa03340}
+
+  /* -- auth -- */
+  #auth{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
+  #auth .box{width:100%;max-width:380px;background:var(--surface);
+             border:1px solid var(--line);border-radius:12px;padding:28px}
+
+  /* -- map -- */
+  svg.map{width:100%;height:auto;background:var(--sunken);border:1px solid var(--line);
+          border-radius:8px}
+  svg.map .grid{stroke:var(--line-soft);stroke-width:.5}
+  svg.map .site{fill:var(--accent-soft);stroke:var(--accent);stroke-width:1.2;cursor:pointer}
+  svg.map .site:hover{fill:var(--accent-line)}
+  svg.map .fld{fill:#4fb3f522;stroke:var(--medium);stroke-width:1}
+  svg.map text{fill:var(--muted);font-family:var(--f-mono);font-size:8px}
+
+  /* -- projection chart -- */
+  .chart{width:100%;height:auto;background:var(--sunken);border:1px solid var(--line);
+         border-radius:8px}
+  .chart .obs{fill:var(--ink-2)}
+  .chart .fit{stroke:var(--accent);stroke-width:1.5;fill:none;stroke-dasharray:4 3}
+  .chart .band{fill:var(--accent-soft);stroke:var(--accent-line)}
+  .chart .ax{stroke:var(--line);stroke-width:1}
+
+  /* -- copilot -- */
+  .chat{display:flex;flex-direction:column;gap:10px;max-height:460px;overflow-y:auto;
+        padding-right:4px}
+  .msg{padding:10px 13px;border-radius:9px;max-width:88%;font-size:13px}
+  .msg.you{align-self:flex-end;background:var(--surface-2);border:1px solid var(--line)}
+  .msg.ts{align-self:flex-start;background:var(--sunken);border:1px solid var(--line)}
+  .cites{margin-top:7px;font-family:var(--f-mono);font-size:10.5px;color:var(--muted)}
+  .spin{display:inline-block;width:12px;height:12px;border:2px solid var(--line);
+        border-top-color:var(--accent);border-radius:50%;animation:sp .7s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<!-- ===================== AUTH ===================== -->
+<div id="auth">
+  <div class="box">
+    <div class="brand" style="padding:0 0 4px">Terra<b>Shield</b></div>
+    <div class="muted" style="font-size:12.5px;margin-bottom:18px">
+      Satellite change intelligence. Decision support, analyst-reviewed.
+    </div>
+
+    <div id="authErr" class="notice err hide"></div>
+
+    <div id="loginForm">
+      <label for="li-email">Email</label>
+      <input id="li-email" type="email" autocomplete="username">
+      <label for="li-pass">Password</label>
+      <input id="li-pass" type="password" autocomplete="current-password">
+      <div style="margin-top:18px" class="row">
+        <button class="primary" id="btnLogin" style="flex:1">Sign in</button>
+      </div>
+      <div class="muted" style="margin-top:14px;font-size:12px">
+        No account? <a href="#" id="toSignup">Register an organisation</a>
+      </div>
+    </div>
+
+    <div id="signupForm" class="hide">
+      <label for="su-org">Organisation</label>
+      <input id="su-org" autocomplete="organization">
+      <label for="su-email">Email</label>
+      <input id="su-email" type="email" autocomplete="username">
+      <label for="su-pass">Password <span class="muted">(12+ characters)</span></label>
+      <input id="su-pass" type="password" autocomplete="new-password">
+      <div style="margin-top:18px" class="row">
+        <button class="primary" id="btnSignup" style="flex:1">Create organisation</button>
+      </div>
+      <div class="muted" style="margin-top:14px;font-size:12px">
+        Have an account? <a href="#" id="toLogin">Sign in</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== APP ===================== -->
+<div id="shell" class="hide">
+  <nav>
+    <div class="brand">Terra<b>Shield</b></div>
+    <a href="#/" data-nav="">Dashboard</a>
+    <a href="#/areas" data-nav="areas">Areas &amp; fields</a>
+    <a href="#/alerts" data-nav="alerts">Alerts</a>
+    <a href="#/changes" data-nav="changes">Changes</a>
+    <a href="#/copilot" data-nav="copilot">Copilot</a>
+    <a href="#/sensing" data-nav="sensing">What we can see</a>
+    <a href="#/audit" data-nav="audit">Audit</a>
+    <div class="navfoot">
+      <div class="mono muted" id="whoami"></div>
+      <button class="ghost" id="btnLogout" style="margin-top:9px;width:100%">Sign out</button>
+    </div>
+  </nav>
+  <main id="view"></main>
+</div>
+
+<script>
+"use strict";
+// ---------------------------------------------------------------------------
+// API client
+// ---------------------------------------------------------------------------
+const TOKEN_KEY = "terrashield.token";
+let TOKEN = null;
+try { TOKEN = localStorage.getItem(TOKEN_KEY); } catch (e) { TOKEN = null; }
+
+async function api(method, path, body) {
+  const headers = {};
+  if (body !== undefined) headers["Content-Type"] = "application/json";
+  if (TOKEN) headers["Authorization"] = "Bearer " + TOKEN;
+  let res;
+  try {
+    res = await fetch(path, {method, headers,
+      body: body === undefined ? undefined : JSON.stringify(body)});
+  } catch (e) {
+    throw new Error("cannot reach the API: " + e.message);
+  }
+  let payload = {};
+  try { payload = await res.json(); } catch (e) { /* empty body */ }
+  if (!res.ok) {
+    const err = new Error(payload.error || ("HTTP " + res.status));
+    err.status = res.status; err.hint = payload.hint || "";
+    throw err;
+  }
+  return payload;
+}
+const GET = (p) => api("GET", p);
+const POST = (p, b) => api("POST", p, b || {});
+
+function setToken(t) {
+  TOKEN = t;
+  try { t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY); }
+  catch (e) { /* private window: the session lives for this tab only */ }
+}
+
+// ---------------------------------------------------------------------------
+// helpers
+// ---------------------------------------------------------------------------
+const $ = (s) => document.querySelector(s);
+const el = (tag, cls, text) => {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text !== undefined && text !== null) n.textContent = String(text);
+  return n;
+};
+const esc = (s) => String(s == null ? "" : s)
+  .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+  .replace(/"/g,"&quot;");
+const sevTag = (s) => `<span class="tag t-${esc(s)}">${esc(s)}</span>`;
+const num = (v, d) => (v == null ? "—" : Number(v).toFixed(d === undefined ? 0 : d));
+const when = (s) => (s ? String(s).slice(0, 10) : "—");
+
+function notice(kind, html) { return `<div class="notice ${kind}">${html}</div>`; }
+function busy(target) { target.innerHTML = '<div class="muted"><span class="spin"></span> loading…</div>'; }
+
+function failure(e) {
+  const hint = e.hint ? `<div class="muted" style="margin-top:6px">${esc(e.hint)}</div>` : "";
+  return notice("err", esc(e.message) + hint);
+}
+
+// ---------------------------------------------------------------------------
+// auth screens
+// ---------------------------------------------------------------------------
+function authError(msg) {
+  const box = $("#authErr");
+  if (!msg) { box.classList.add("hide"); return; }
+  box.textContent = msg; box.classList.remove("hide");
+}
+
+$("#toSignup").onclick = (e) => { e.preventDefault(); authError(null);
+  $("#loginForm").classList.add("hide"); $("#signupForm").classList.remove("hide"); };
+$("#toLogin").onclick = (e) => { e.preventDefault(); authError(null);
+  $("#signupForm").classList.add("hide"); $("#loginForm").classList.remove("hide"); };
+
+$("#btnLogin").onclick = async () => {
+  authError(null);
+  const btn = $("#btnLogin"); btn.disabled = true;
+  try {
+    const r = await POST("/api/auth/login",
+      {email: $("#li-email").value.trim(), password: $("#li-pass").value});
+    setToken(r.token); await start();
+  } catch (e) { authError(e.message); } finally { btn.disabled = false; }
+};
+
+$("#btnSignup").onclick = async () => {
+  authError(null);
+  const btn = $("#btnSignup"); btn.disabled = true;
+  try {
+    const r = await POST("/api/auth/signup", {
+      organisation: $("#su-org").value.trim(),
+      email: $("#su-email").value.trim(),
+      password: $("#su-pass").value});
+    setToken(r.token); await start();
+  } catch (e) {
+    // Signup is off unless the server was started with --allow-signup, and
+    // saying so beats "404".
+    authError(e.status === 401 || e.status === 404
+      ? "self-service registration is disabled on this server; ask an administrator for an account"
+      : e.message);
+  } finally { btn.disabled = false; }
+};
+
+$("#btnLogout").onclick = async () => {
+  try { await POST("/api/auth/logout"); } catch (e) { /* revoke anyway */ }
+  setToken(null); location.hash = ""; showAuth();
+};
+
+function showAuth() {
+  $("#auth").classList.remove("hide");
+  $("#shell").classList.add("hide");
+}
+
+// ---------------------------------------------------------------------------
+// routing
+// ---------------------------------------------------------------------------
+const ROUTES = {
+  "": dashboard, "areas": areas, "area": areaDetail, "alerts": alerts,
+  "changes": changes, "copilot": copilot, "sensing": sensing, "audit": audit,
+  "evidence": evidence,
+};
+
+function route() {
+  const raw = location.hash.replace(/^#\/?/, "");
+  const [name, ...rest] = raw.split("/");
+  const fn = ROUTES[name] || dashboard;
+  document.querySelectorAll("nav a").forEach(a =>
+    a.classList.toggle("on", (a.dataset.nav || "") === (ROUTES[name] ? name : "")));
+  const view = $("#view");
+  busy(view);
+  Promise.resolve(fn(view, rest)).catch(e => { view.innerHTML = failure(e); });
+}
+window.addEventListener("hashchange", route);
+
+async function start() {
+  try {
+    const me = await GET("/api/me");
+    $("#whoami").textContent = me.actor + " · " + me.role;
+    $("#auth").classList.add("hide");
+    $("#shell").classList.remove("hide");
+    route();
+  } catch (e) {
+    setToken(null); showAuth();
+    if (e.status && e.status !== 401) authError(e.message);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// screens
+// ---------------------------------------------------------------------------
+async function dashboard(view) {
+  const [health, siteList, alertList] = await Promise.all([
+    GET("/api/health").catch(() => ({})),
+    GET("/api/sites"),
+    GET("/api/alerts?limit=200").catch(() => ({alerts: []})),
+  ]);
+  const sites = siteList.sites || [];
+  const open = (alertList.alerts || []).filter(a => a.review_status === "pending");
+  const p1 = open.filter(a => a.priority === 1).length;
+
+  view.innerHTML = `
+    <h1>Command dashboard</h1>
+    <div class="sub">Every finding here is analyst-reviewable and carries its evidence.
+      Nothing on this page asserts intent or cause.</div>
+    <div class="cards">
+      <div class="card"><div class="k">Monitored areas</div><div class="v">${sites.length}</div></div>
+      <div class="card"><div class="k">Open alerts</div><div class="v">${open.length}</div>
+        <div class="n">${p1} at priority 1</div></div>
+      <div class="card"><div class="k">Scenes held</div>
+        <div class="v">${num(health.scenes)}</div></div>
+      <div class="card"><div class="k">Change events</div>
+        <div class="v">${num(health.change_events)}</div></div>
+      <div class="card"><div class="k">Audit chain</div>
+        <div class="v" style="font-size:16px;color:${health.audit_intact === false ? "var(--critical)" : "var(--accent)"}">
+          ${health.audit_intact === false ? "BROKEN" : "intact"}</div></div>
+    </div>
+    ${sites.length ? mapSVG(sites) : notice("warn",
+      "No areas yet. <a href='#/areas'>Add one</a> to begin monitoring.")}
+    <h2>Priority queue</h2>
+    <div id="dashAlerts"></div>`;
+  renderAlerts($("#dashAlerts"), open.slice(0, 8));
+}
+
+function mapSVG(sites, fields) {
+  const pts = [];
+  sites.forEach(s => { if (s.bbox) pts.push([s.bbox[0], s.bbox[1]], [s.bbox[2], s.bbox[3]]); });
+  if (!pts.length) return "";
+  let minx = Math.min(...pts.map(p => p[0])), maxx = Math.max(...pts.map(p => p[0]));
+  let miny = Math.min(...pts.map(p => p[1])), maxy = Math.max(...pts.map(p => p[1]));
+  const padx = Math.max((maxx - minx) * 0.15, 0.05), pady = Math.max((maxy - miny) * 0.15, 0.05);
+  minx -= padx; maxx += padx; miny -= pady; maxy += pady;
+  const W = 900, H = 380;
+  const X = (lon) => ((lon - minx) / (maxx - minx)) * W;
+  const Y = (lat) => H - ((lat - miny) / (maxy - miny)) * H;
+
+  let g = "";
+  for (let i = 0; i <= 8; i++) {
+    g += `<line class="grid" x1="${(i/8)*W}" y1="0" x2="${(i/8)*W}" y2="${H}"/>`;
+    g += `<line class="grid" x1="0" y1="${(i/8)*H}" x2="${W}" y2="${(i/8)*H}"/>`;
+  }
+  let body = "";
+  (fields || []).forEach(f => {
+    if (!f.boundary) return;
+    const d = f.boundary.map(p => `${X(p[0]).toFixed(1)},${Y(p[1]).toFixed(1)}`).join(" ");
+    body += `<polygon class="fld" points="${d}"><title>${esc(f.name)}</title></polygon>`;
+  });
+  sites.forEach(s => {
+    const b = s.bbox; if (!b) return;
+    const x = X(b[0]), y = Y(b[3]), w = Math.max(X(b[2]) - X(b[0]), 6),
+          h = Math.max(Y(b[1]) - Y(b[3]), 6);
+    body += `<rect class="site" x="${x.toFixed(1)}" y="${y.toFixed(1)}" `
+          + `width="${w.toFixed(1)}" height="${h.toFixed(1)}" rx="2" `
+          + `onclick="location.hash='#/area/${esc(s.id)}'"><title>${esc(s.name)}</title></rect>`
+          + `<text x="${(x + w/2).toFixed(1)}" y="${(y - 4).toFixed(1)}" `
+          + `text-anchor="middle">${esc(s.name)}</text>`;
+  });
+  return `<svg class="map" viewBox="0 0 ${W} ${H}" role="img"
+    aria-label="Monitored areas">${g}${body}</svg>`;
+}
+
+// -- areas ------------------------------------------------------------------
+async function areas(view) {
+  const {sites} = await GET("/api/sites");
+  view.innerHTML = `
+    <h1>Areas &amp; fields</h1>
+    <div class="sub">An area is the unit of tasking and baselines. A field is a named
+      part of one, so a finding reads “Block D” instead of a coordinate.</div>
+    ${sites.length ? mapSVG(sites) : ""}
+    <div class="grid2" style="margin-top:18px">
+      <div class="panel">
+        <h2 style="margin-top:0">Monitored areas</h2>
+        <table><thead><tr><th>Name</th><th>Kind</th><th class="num">km²</th><th></th></tr>
+          </thead><tbody>${
+          sites.map(s => `<tr>
+            <td><a href="#/area/${esc(s.id)}">${esc(s.name)}</a>
+              <div class="mono muted" style="font-size:10.5px">${esc(s.id)}</div></td>
+            <td><span class="tag">${esc(s.kind)}</span></td>
+            <td class="num">${num(s.area_km2, 2)}</td>
+            <td class="num"><a href="#/area/${esc(s.id)}">open</a></td></tr>`).join("")
+          || `<tr><td colspan="4" class="muted">None yet.</td></tr>`}
+        </tbody></table>
+      </div>
+      <div class="panel">
+        <h2 style="margin-top:0">Add an area</h2>
+        <div id="addErr"></div>
+        <label for="a-name">Name</label>
+        <input id="a-name" placeholder="Mundra Port — terminal 2">
+        <label for="a-kind">Kind</label>
+        <select id="a-kind">
+          <option value="generic">generic</option><option value="port">port</option>
+          <option value="airfield">airfield</option>
+          <option value="border_sector">border sector</option>
+          <option value="energy">energy</option><option value="industrial">industrial</option>
+          <option value="dam">dam</option><option value="transport">transport</option>
+        </select>
+        <label for="a-geo">Boundary — GeoJSON, or a list of [lon, lat] pairs</label>
+        <textarea id="a-geo" spellcheck="false" placeholder='{"type":"Polygon","coordinates":[[[72.98,20.98],[73.02,20.98],[73.02,21.02],[72.98,21.02],[72.98,20.98]]]}'></textarea>
+        <div class="row" style="margin-top:14px">
+          <button class="primary" id="btnAddArea">Add area</button>
+          <button class="ghost" id="btnSample">Insert a sample polygon</button>
+        </div>
+      </div>
+    </div>`;
+
+  $("#btnSample").onclick = () => {
+    $("#a-geo").value = JSON.stringify({type:"Polygon",coordinates:[[
+      [72.98,20.98],[73.02,20.98],[73.02,21.02],[72.98,21.02],[72.98,20.98]]]}, null, 1);
+  };
+  $("#btnAddArea").onclick = async () => {
+    const box = $("#addErr"); box.innerHTML = "";
+    let boundary;
+    try { boundary = JSON.parse($("#a-geo").value); }
+    catch (e) { box.innerHTML = notice("err", "the boundary is not valid JSON"); return; }
+    try {
+      const r = await POST("/api/sites", {name: $("#a-name").value.trim(),
+        kind: $("#a-kind").value, boundary});
+      location.hash = "#/area/" + r.site.id;
+    } catch (e) { box.innerHTML = failure(e); }
+  };
+}
+
+async function areaDetail(view, rest) {
+  const id = rest[0];
+  if (!id) { location.hash = "#/areas"; return; }
+  const [site, fieldData] = await Promise.all([
+    GET("/api/sites/" + encodeURIComponent(id)),
+    GET("/api/sites/" + encodeURIComponent(id) + "/fields").catch(() => ({fields: [], count: 0})),
+  ]);
+  const s = site.site || {};
+  const cov = site.coverage || {};
+  view.innerHTML = `
+    <h1>${esc(s.name || id)}</h1>
+    <div class="sub mono">${esc(s.id || id)} · ${esc(s.kind || "")} ·
+      ${num(s.area_km2, 2)} km² · assessed over ${esc(site.period ? site.period.from + " → " + site.period.to : "")}</div>
+    <div class="cards">
+      <div class="card"><div class="k">Usable imagery</div>
+        <div class="v">${cov.usable == null ? "—" : cov.usable}</div>
+        <div class="n">of ${num(cov.acquisitions)} acquisitions</div></div>
+      <div class="card"><div class="k">Changes</div>
+        <div class="v">${(site.changes || []).length}</div></div>
+      <div class="card"><div class="k">Anomalies</div>
+        <div class="v">${(site.anomalies || []).length}</div></div>
+      <div class="card"><div class="k">Fields</div>
+        <div class="v">${fieldData.count || 0}</div>
+        <div class="n">${num(fieldData.hectares, 1)} ha</div></div>
+    </div>
+    ${mapSVG([{...s, bbox: s.bbox || (s.boundary ? bboxOf(s.boundary) : null),
+               name: s.name, id: s.id}], fieldData.fields)}
+
+    <div class="grid2" style="margin-top:18px">
+      <div class="panel">
+        <h2 style="margin-top:0">Projection</h2>
+        <div class="muted" style="font-size:12px">
+          Projects a measured trend. Not a prediction: it assumes whatever drove the
+          change continues, which the system cannot verify.
+        </div>
+        <div class="row" style="margin-top:12px">
+          <input id="p-metric" placeholder="metric, e.g. building_count" style="flex:2">
+          <input id="p-to" type="date" style="flex:1">
+          <button id="btnProject">Project</button>
+        </div>
+        <div id="projOut" style="margin-top:12px"></div>
+      </div>
+      <div class="panel">
+        <h2 style="margin-top:0">Add a field</h2>
+        <div id="fErr"></div>
+        <label for="f-name">Name</label>
+        <input id="f-name" placeholder="Block D">
+        <label for="f-use">Use <span class="muted">(optional)</span></label>
+        <input id="f-use" placeholder="wheat / berth / sector">
+        <label for="f-geo">Boundary — must fall inside this area</label>
+        <textarea id="f-geo" spellcheck="false"></textarea>
+        <button class="primary" id="btnAddField" style="margin-top:14px">Add field</button>
+        <table style="margin-top:16px"><thead><tr><th>Field</th><th>Use</th>
+          <th class="num">ha</th><th></th></tr></thead><tbody>${
+          (fieldData.fields || []).map(f => `<tr><td>${esc(f.name)}</td>
+            <td class="muted">${esc(f.use || "—")}</td>
+            <td class="num">${num(f.hectares, 2)}</td>
+            <td class="num"><button class="ghost" data-retire="${esc(f.id)}"
+              style="padding:3px 9px;font-size:11px">retire</button></td></tr>`).join("")
+          || `<tr><td colspan="4" class="muted">No fields yet.</td></tr>`}
+        </tbody></table>
+      </div>
+    </div>
+
+    <h2>Changes</h2>
+    <table><thead><tr><th>Date</th><th>Type</th><th class="num">Area m²</th>
+      <th>Severity</th><th class="num">Conf.</th><th>Measurement</th></tr></thead><tbody>${
+      (site.changes || []).slice(0, 40).map(c => `<tr>
+        <td class="mono">${when(c.detected_at)}</td>
+        <td>${esc(c.change_type)}</td>
+        <td class="num">${num(c.area_m2)}</td>
+        <td>${sevTag(c.severity)}</td>
+        <td class="num">${num((c.confidence || 0) * 100)}%</td>
+        <td class="muted">${esc(c.explanation || "")}</td></tr>`).join("")
+      || `<tr><td colspan="6" class="muted">No changes in this window.</td></tr>`}
+    </tbody></table>`;
+
+  view.querySelectorAll("[data-retire]").forEach(b => b.onclick = async () => {
+    try { await POST("/api/fields/" + encodeURIComponent(b.dataset.retire) + "/retire");
+      route(); } catch (e) { $("#fErr").innerHTML = failure(e); }
+  });
+
+  $("#btnAddField").onclick = async () => {
+    const box = $("#fErr"); box.innerHTML = "";
+    let boundary;
+    try { boundary = JSON.parse($("#f-geo").value); }
+    catch (e) { box.innerHTML = notice("err", "the boundary is not valid JSON"); return; }
+    try {
+      await POST("/api/sites/" + encodeURIComponent(id) + "/fields",
+        {name: $("#f-name").value.trim(), use: $("#f-use").value.trim(), boundary});
+      route();
+    } catch (e) { box.innerHTML = failure(e); }
+  };
+
+  $("#btnProject").onclick = async () => {
+    const out = $("#projOut"); busy(out);
+    const metric = $("#p-metric").value.trim(), to = $("#p-to").value;
+    if (!metric || !to) { out.innerHTML = notice("warn", "a metric and a date are needed"); return; }
+    try {
+      const r = await GET("/api/sites/" + encodeURIComponent(id)
+        + "/projection?metric=" + encodeURIComponent(metric) + "&to=" + to);
+      out.innerHTML = r.is_projection
+        ? `${notice("ok", esc(r.headline))}
+           <div class="mono muted" style="font-size:11.5px">
+             band ${num(r.band.low,1)} – ${num(r.band.high,1)} at ${r.band.confidence_pct}% ·
+             fit ${r.fit_quality} · ${r.observations} observations ·
+             ${r.days_ahead} days ahead</div>
+           <div class="muted" style="margin-top:8px;font-size:12px">${esc(r.assumption)}</div>`
+        : notice("warn", "<b>No projection.</b> " + esc(r.refused));
+    } catch (e) { out.innerHTML = failure(e); }
+  };
+}
+
+function bboxOf(ring) {
+  const xs = ring.map(p => p[0]), ys = ring.map(p => p[1]);
+  return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+}
+
+// -- alerts -----------------------------------------------------------------
+async function alerts(view) {
+  const {alerts} = await GET("/api/alerts?limit=200");
+  view.innerHTML = `
+    <h1>Alerts</h1>
+    <div class="sub">Ranked by composite risk, deduplicated by place and kind.
+      Confirming or rejecting is recorded against your name.</div>
+    <div id="alertList"></div>`;
+  renderAlerts($("#alertList"), alerts || []);
+}
+
+function renderAlerts(target, list) {
+  if (!list.length) { target.innerHTML = `<div class="muted">Nothing open.</div>`; return; }
+  target.innerHTML = list.map(a => `
+    <div class="panel">
+      <div class="row" style="justify-content:space-between">
+        <div class="row">
+          <span class="prio t-${esc(a.severity)}">${esc(a.priority)}</span>
+          <b>${esc(a.title)}</b>
+          ${sevTag(a.severity)}
+          <span class="tag">${esc(a.aoi_id)}</span>
+        </div>
+        <span class="mono muted" style="font-size:11px">${when(a.created_at)}</span>
+      </div>
+      <div style="margin-top:8px">${esc(a.summary || "")}</div>
+      ${a.held ? `<div class="notice warn" style="margin:10px 0 0">${esc(a.held)}</div>` : ""}
+      <div class="row" style="margin-top:12px">
+        ${a.evidence_id ? `<a href="#/evidence/${esc(a.evidence_id)}">
+          <button class="ghost">Evidence</button></a>` : ""}
+        <button class="ghost" data-rev="confirmed" data-id="${esc(a.id)}">Confirm</button>
+        <button class="ghost" data-rev="rejected" data-id="${esc(a.id)}">Reject</button>
+        <button class="ghost" data-rev="escalated" data-id="${esc(a.id)}">Escalate</button>
+        <span class="mono muted" style="font-size:11px">status ${esc(a.review_status || "pending")}</span>
+      </div>
+      <div class="rev-msg"></div>
+    </div>`).join("");
+
+  target.querySelectorAll("[data-rev]").forEach(b => b.onclick = async () => {
+    const panel = b.closest(".panel"), msg = panel.querySelector(".rev-msg");
+    panel.querySelectorAll("[data-rev]").forEach(x => x.disabled = true);
+    try {
+      await POST("/api/reviews/" + encodeURIComponent(b.dataset.id),
+        {status: b.dataset.rev, note: ""});
+      msg.innerHTML = notice("ok", "Recorded as <b>" + esc(b.dataset.rev) + "</b>.");
+    } catch (e) {
+      msg.innerHTML = failure(e);
+      panel.querySelectorAll("[data-rev]").forEach(x => x.disabled = false);
+    }
+  });
+}
+
+// -- changes ----------------------------------------------------------------
+async function changes(view) {
+  const {changes} = await GET("/api/changes?limit=200");
+  view.innerHTML = `
+    <h1>Changes</h1>
+    <div class="sub">Every row is a measurement with a confidence and a model version
+      behind it.</div>
+    <table><thead><tr><th>Date</th><th>Area</th><th>Type</th><th class="num">m²</th>
+      <th>Severity</th><th class="num">Conf.</th><th>Measurement</th></tr></thead><tbody>${
+      (changes || []).map(c => `<tr>
+        <td class="mono">${when(c.detected_at)}</td>
+        <td><a href="#/area/${esc(c.aoi_id)}">${esc(c.aoi_id)}</a></td>
+        <td>${esc(c.change_type)}</td>
+        <td class="num">${num(c.area_m2)}</td>
+        <td>${sevTag(c.severity)}</td>
+        <td class="num">${num((c.confidence || 0) * 100)}%</td>
+        <td class="muted">${esc(c.explanation || "")}</td></tr>`).join("")
+      || `<tr><td colspan="7" class="muted">Nothing recorded.</td></tr>`}
+    </tbody></table>`;
+}
+
+// -- evidence ---------------------------------------------------------------
+async function evidence(view, rest) {
+  const id = rest[0];
+  const b = await GET("/api/evidence/" + encodeURIComponent(id));
+  view.innerHTML = `
+    <h1>Evidence</h1>
+    <div class="sub mono">${esc(id)}</div>
+    <div class="panel"><pre class="mono" style="white-space:pre-wrap;font-size:12px;margin:0">${
+      esc(JSON.stringify(b, null, 2))}</pre></div>`;
+}
+
+// -- copilot ----------------------------------------------------------------
+async function copilot(view) {
+  view.innerHTML = `
+    <h1>Copilot</h1>
+    <div class="sub">Answers only from stored records, with citations. It refuses
+      questions about ownership, intent, targeting and prediction, and says why.</div>
+    <div class="panel">
+      <div class="chat" id="chat">
+        <div class="msg ts">Ask about what changed, where, and when. For example:
+          <i>what changed at IN-MUN-PORT in the last 30 days</i></div>
+      </div>
+      <div class="row" style="margin-top:14px">
+        <input id="q" placeholder="Ask a question…" style="flex:1">
+        <button class="primary" id="btnAsk">Ask</button>
+      </div>
+    </div>`;
+  const chat = $("#chat");
+  const ask = async () => {
+    const q = $("#q").value.trim(); if (!q) return;
+    $("#q").value = "";
+    chat.appendChild(el("div", "msg you", q));
+    const pending = el("div", "msg ts"); pending.innerHTML = '<span class="spin"></span>';
+    chat.appendChild(pending); chat.scrollTop = chat.scrollHeight;
+    try {
+      const r = await POST("/api/copilot", {question: q});
+      pending.textContent = r.text || "(no answer)";
+      if (r.citations && r.citations.length) {
+        //: Citations are {kind, ref, detail}, not strings. Rendering the
+        //: object would put "[object Object]" under every answer, which is
+        //: how an evidence-grounded product stops looking grounded.
+        const c = el("div", "cites", "sources: " + r.citations
+          .map(x => (x.kind ? x.kind + " " : "") + (x.ref || "")).join(" · "));
+        pending.appendChild(c);
+      }
+      if (r.unsupported) {
+        const u = el("div", "cites");
+        u.style.color = "var(--high)";
+        u.textContent = r.unsupported;
+        pending.appendChild(u);
+      }
+    } catch (e) { pending.innerHTML = failure(e); }
+    chat.scrollTop = chat.scrollHeight;
+  };
+  $("#btnAsk").onclick = ask;
+  $("#q").onkeydown = (e) => { if (e.key === "Enter") ask(); };
+}
+
+// -- sensing ----------------------------------------------------------------
+async function sensing(view) {
+  const task = "detect";
+  const r = await GET("/api/sensing?task=" + task);
+  const platforms = ["sentinel-2","sentinel-1","landsat","planetscope","skysat",
+                     "worldview","uav"];
+  view.innerHTML = `
+    <h1>What we can see</h1>
+    <div class="sub">Resolution decides what is possible. A target below its
+      platform's limit is not found by a better model — the information is not in
+      the data. This is the page that decides an imagery budget.</div>
+    ${notice("warn", "<b>Not possible from orbit at any price:</b> people (0.5 m) and "
+      + "drones in flight (0.3 m, and moving). Both are resolvable from UAV imagery, "
+      + "which carries privacy obligations satellite monitoring does not.")}
+    <table><thead><tr><th>Target</th><th class="num">Size</th>${
+      platforms.map(p => `<th class="num">${esc(p)}</th>`).join("")}<th>Cheapest</th>
+      </tr></thead><tbody>${
+      (r.matrix || []).map(row => `<tr>
+        <td>${esc(row.target)}${row.possible_from_orbit ? ""
+          : ' <span class="tag t-critical">orbit: no</span>'}</td>
+        <td class="num">${num(row.smallest_m, 2)} m</td>
+        ${platforms.map(p => `<td class="num">${row[p]
+          ? '<span style="color:var(--accent)">yes</span>' : '<span class="muted">—</span>'}</td>`).join("")}
+        <td class="mono">${row.cheapest
+          ? esc(row.cheapest) : '<span style="color:var(--critical)">not possible</span>'}</td>
+      </tr>`).join("")}
+    </tbody></table>`;
+}
+
+// -- audit ------------------------------------------------------------------
+async function audit(view) {
+  let rows = [];
+  try { rows = (await GET("/api/audit?limit=200")).entries || []; }
+  catch (e) {
+    if (e.status === 403) {
+      view.innerHTML = `<h1>Audit</h1>` + notice("warn",
+        "Reading the audit log needs an administrator role.");
+      return;
+    }
+    throw e;
+  }
+  view.innerHTML = `
+    <h1>Audit</h1>
+    <div class="sub">Append-only and hash-chained. Reads are logged as well as
+      writes — in an intelligence system the sensitive operation is usually a read.</div>
+    <table><thead><tr><th>When</th><th>Actor</th><th>Action</th><th>Subject</th>
+      </tr></thead><tbody>${
+      rows.map(a => `<tr><td class="mono">${esc((a.at || "").slice(0,19))}</td>
+        <td>${esc(a.actor)}</td><td class="mono">${esc(a.action)}</td>
+        <td class="mono muted">${esc(a.subject || "")}</td></tr>`).join("")
+      || `<tr><td colspan="4" class="muted">Nothing logged yet.</td></tr>`}
+    </tbody></table>`;
+}
+
+// ---------------------------------------------------------------------------
+if (TOKEN) { start(); } else { showAuth(); }
+</script>
+</body>
+</html>

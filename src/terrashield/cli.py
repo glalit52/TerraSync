@@ -495,6 +495,22 @@ def build_parser() -> argparse.ArgumentParser:
     q.add_argument("--scenes", type=int, default=3)
     q.set_defaults(fn=cmd_evaluate)
 
+    q = sub.add_parser("register",
+                       help="create an organisation and its first administrator")
+    q.add_argument("--org", required=True, help="organisation name")
+    q.add_argument("--email", required=True)
+    q.add_argument("--password", default="",
+                   help="omit to be prompted, which keeps it out of shell history")
+    q.add_argument("--name", default="")
+    q.set_defaults(fn=cmd_register)
+
+    q = sub.add_parser("sensing", help="what can be resolved, and by what")
+    q.add_argument("--target", default="",
+                   help="one target, with the reasoning; omit for the matrix")
+    q.add_argument("--task", default="detect",
+                   choices=["detect", "classify", "identify", "track"])
+    q.set_defaults(fn=cmd_sensing)
+
     q = sub.add_parser("providers", help="imagery sources, and what each needs")
     q.add_argument("--check", action="store_true",
                    help="contact the selected provider as well as reporting "
@@ -520,6 +536,94 @@ def build_parser() -> argparse.ArgumentParser:
     q.add_argument("--to", default="2026-04-12")
     q.set_defaults(fn=cmd_demo)
     return p
+
+
+def cmd_register(args) -> int:
+    """Create the first account, from the machine that owns the database.
+
+    This exists because `serve` refuses to start with no accounts, and the
+    alternative way to fix that -- opening registration on a server nobody has
+    an account on -- is a server anyone who reaches the port can enrol on.
+    Bootstrapping from the command line means the first account is created by
+    somebody who already has access to the host, which is the property that
+    makes it safe.
+    """
+    import getpass
+    import sqlite3
+
+    from .accounts import Accounts, AuthError
+    from .store.schema import migrate
+
+    password = args.password
+    if not password:
+        password = getpass.getpass("password: ")
+        if password != getpass.getpass("repeat: "):
+            print("passwords do not match")
+            return 1
+
+    conn = sqlite3.connect(args.db)
+    migrate(conn)
+    accounts = Accounts(conn)
+    try:
+        existing = accounts.find_by_email(args.email)
+        if existing is not None:
+            print(f"{args.email} is already registered")
+            return 1
+        account = accounts.register_organisation(
+            org_name=args.org, email=args.email, password=password,
+            name=args.name)
+    except AuthError as e:
+        print(str(e))
+        return 1
+    finally:
+        conn.close()
+
+    print(f"organisation {args.org!r} created")
+    print(f"  id      {account.org_id}")
+    print(f"  admin   {account.email}")
+    print(f"  role    {account.role.value}")
+    print()
+    print(f"Start the API and open it in a browser:")
+    print(f"  terrashield --db {args.db} serve")
+    return 0
+
+
+def cmd_sensing(args) -> int:
+    """What the sensors can actually resolve.
+
+    Worth having as a command because it is the conversation that decides an
+    imagery budget: a customer asking to count vehicles on free Sentinel data
+    is asking for something no model can deliver, and finding that out at the
+    demo is far cheaper than finding it out in month three of a pilot.
+    """
+    from . import sensing
+
+    task = sensing.Task(args.task)
+    if args.target:
+        try:
+            print(sensing.explain(args.target, task))
+        except KeyError as e:
+            print(str(e).strip("\"'"))
+            return 1
+        print()
+        for platform in sensing.GSD_M:
+            v = sensing.assess(args.target, task, platform)
+            print(f"  {'yes' if v.feasible else ' - '} {platform.value:14} "
+                  f"{sensing.GSD_M[platform]:>6.2f} m   {v.pixels_across:>6.1f} px")
+        return 0
+
+    cols = list(sensing.GSD_M)
+    head = "".join(f"{p.value[:9]:>10}" for p in cols)
+    print(f"{'target':24}{'size':>8}{head}   cheapest")
+    print("-" * (32 + 10 * len(cols) + 12))
+    for row in sensing.capability_matrix(task):
+        cells = "".join(f"{'yes' if row[p.value] else '-':>10}" for p in cols)
+        note = row["cheapest"] or "NOT POSSIBLE"
+        print(f"{row['target']:24}{row['smallest_m']:>7.2f}m{cells}   {note}")
+    print()
+    print("Targets marked NOT POSSIBLE cannot be resolved from orbit at any "
+          "price. Run with --target <name> for the reasoning.")
+    return 0
 
 
 def cmd_providers(args) -> int:
