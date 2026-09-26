@@ -30,17 +30,19 @@ world are not connected. Both halves of that sentence matter.
 | Store, RBAC, hash-chained audit, CLI | **Built** |
 | Accounts: sign-up, sign-in, sessions, password changes | **Built** — scrypt, digest-only tokens |
 | Areas and fields: create, list, validate, retire, point lookup | **Built** |
-| HTTP API — 26 routes, 3 of them unauthenticated by design | **Built** |
+| HTTP API — 28 routes, 3 of them unauthenticated by design | **Built** |
 | Web application — sign in, areas, fields, alerts, review, copilot | **Built** — served by the API process |
 | Console (static report page) | **Built** — committed with its dataset |
 | Sensing limits — what each platform can resolve | **Built** |
 | Projection of a measured trend | **Built** — refused where the data cannot support one |
 | Imagery providers — 7 vendors, selected by one variable | **Built** — catalogue search; pixel reads need the `imagery` extra |
-| Alert delivery (email, webhook) | **Not built** — rules declare it, nothing sends |
-| Learned detection models | **Not built** — the detector is classical, and is a baseline to beat |
 | Event fusion — findings grouped into episodes | **Built** — reports its own noise reduction |
 | Knowledge graph and evidence path | **Built** — in-process, no graph database to deploy |
 | AIS correlation for maritime | **Built** — correlation only, never an accusation |
+| Alert delivery — signed webhooks, retries, failures visible | **Built** — email needs an SMTP relay |
+| Model registry — versions, evaluations, inference log | **Built** |
+| Learned detection models | **Not built** — the detector is classical, and is a baseline to beat |
+| SSO / MFA | **Not built** — password and session only |
 | Autonomous agents, OSINT, thermal, UAV ingest | **Not built** |
 
 Two things follow from that table and are easy to miss:
@@ -107,6 +109,47 @@ the ground signature — launch sites, control stations, apron activity.
 And a distinction worth holding: satellites revisit in days, so vehicle
 *counting* per pass is a real capability and vehicle *tracking* between passes
 is not.
+
+## Alert delivery
+
+An alerting system that does not alert is a queue. `delivery.py` sends alerts
+to configured destinations and records what happened to each.
+
+**The payload carries references, never content.** A webhook endpoint is
+usually the least protected surface a customer operates — a chat integration, a
+ticketing system, someone's automation. The payload is an alert id, a severity,
+an area id and a URL: enough to know something needs attention, not enough to
+be worth intercepting. It is a whitelist, because a blacklist fails open — the
+next field added to an alert would be forwarded to every webhook by default,
+and nobody would notice until it was already in somebody's chat history.
+
+**Every delivery is signed**, HMAC-SHA256 over the timestamp *and* the body, so
+a captured delivery cannot be replayed. `delivery.verify` is what a receiver
+should run, shipped so integrators do not invent it.
+
+**A failed delivery is recorded and foregrounded.** An alert that silently
+failed to send looks exactly like a quiet week, and the operator believes
+someone was told. Email says plainly that it did not send rather than
+pretending — it needs an SMTP relay belonging to the deployment.
+
+## Model governance
+
+Every finding carries a `model_version`. That answers "which model said this",
+and not the question asked in year two: *this alert was wrong — what else did
+that version produce?*
+
+`registry.py` keeps versions as records with their measurements and an
+inference log, so withdrawing a bad version means listing exactly what it
+touched rather than guessing from dates. A precision figure lives beside the
+test set that produced it, because one without the other cannot be reproduced
+or compared.
+
+Two rules in code: **a version cannot be activated without a recorded
+evaluation**, because promoting an unmeasured model is how a detector silently
+gets worse; and one scoring below F1 0.30 is refused outright, since that is
+the range of a model wired up wrong rather than merely weak. `health()` reports
+a version appearing in findings that nobody registered — exactly the case where
+provenance has already failed.
 
 ## Events, and why the queue is shorter than the findings
 
