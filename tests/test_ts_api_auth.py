@@ -40,8 +40,14 @@ def accounts(db):
     return Accounts(conn)
 
 
-def public(accounts, method, path, body=None, token=""):
-    return dispatch_public(accounts, method, path, {}, body or {}, token)
+def public(accounts, method, path, body=None, token="", allow_signup=True):
+    """Most of these tests exercise registration, so it is open by default.
+
+    The tests that care about it being *closed* pass the flag explicitly, and
+    live next to the ones asserting that signing in still works when it is.
+    """
+    return dispatch_public(accounts, method, path, {}, body or {}, token,
+                           allow_signup)
 
 
 @pytest.fixture
@@ -112,6 +118,45 @@ def test_logout_revokes_the_session(accounts):
     status, payload = public(accounts, "POST", "/api/auth/logout", {}, token)
     assert (status, payload) == (200, {"revoked": True})
     assert accounts.resolve_session(token) is None
+
+
+def test_signing_in_works_when_registration_is_closed(accounts):
+    """Login and registration are different things.
+
+    Gating them together made the whole application unreachable on any server
+    that had sensibly disabled self-service sign-up: an administrator could
+    create accounts with `terrashield register`, and then nobody could use
+    them. Only registration is a way *in*; signing in is how someone who
+    already has an account uses the product.
+    """
+    public(accounts, "POST", "/api/auth/signup", {
+        "organisation": "S", "email": "owner@example.com", "password": GOOD})
+
+    status, payload = dispatch_public(
+        accounts, "POST", "/api/auth/login", {},
+        {"email": "owner@example.com", "password": GOOD}, "",
+        allow_signup=False)
+    assert status == 200, payload
+    assert payload["token"]
+
+
+def test_registration_is_refused_when_closed_and_names_the_alternative(accounts):
+    status, payload = dispatch_public(
+        accounts, "POST", "/api/auth/signup", {},
+        {"organisation": "S", "email": "a@b.com", "password": GOOD}, "",
+        allow_signup=False)
+    assert status == 403
+    assert "disabled" in payload["error"]
+    assert "terrashield register" in payload["hint"]
+
+
+def test_logging_out_works_when_registration_is_closed(accounts):
+    _, payload = public(accounts, "POST", "/api/auth/signup", {
+        "organisation": "S", "email": "owner@example.com", "password": GOOD})
+    status, out = dispatch_public(
+        accounts, "POST", "/api/auth/logout", {}, {}, payload["token"],
+        allow_signup=False)
+    assert (status, out) == (200, {"revoked": True})
 
 
 def test_only_the_auth_routes_are_reachable_without_a_token(accounts):

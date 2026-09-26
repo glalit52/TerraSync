@@ -38,7 +38,10 @@ world are not connected. Both halves of that sentence matter.
 | Imagery providers — 7 vendors, selected by one variable | **Built** — catalogue search; pixel reads need the `imagery` extra |
 | Alert delivery (email, webhook) | **Not built** — rules declare it, nothing sends |
 | Learned detection models | **Not built** — the detector is classical, and is a baseline to beat |
-| Autonomous agents, knowledge graph, AIS, OSINT | **Not built** — the next increment |
+| Event fusion — findings grouped into episodes | **Built** — reports its own noise reduction |
+| Knowledge graph and evidence path | **Built** — in-process, no graph database to deploy |
+| AIS correlation for maritime | **Built** — correlation only, never an accusation |
+| Autonomous agents, OSINT, thermal, UAV ingest | **Not built** |
 
 Two things follow from that table and are easy to miss:
 
@@ -104,6 +107,62 @@ the ground signature — launch sites, control stations, apron activity.
 And a distinction worth holding: satellites revisit in days, so vehicle
 *counting* per pass is a real capability and vehicle *tracking* between passes
 is not.
+
+## Events, and why the queue is shorter than the findings
+
+A construction site seen on eleven passes produces eleven change records. A
+queue built straight from them shows the same excavation eleven times, and that
+is the mechanism behind alert fatigue — raising a threshold does not fix it,
+because that loses the small real things and keeps the repeated large ones.
+
+`events.fuse` groups findings into episodes by place, compatible kind, and a
+gap no longer than the sensor's revisit. What comes out has a beginning, a most
+recent look, a count and a trajectory. Ground disturbance followed by
+structures is one construction sequence, not two events at the same
+coordinates. `summarise` reports the reduction, which is the alert-noise number
+the scope of work asks for per milestone.
+
+Severity is the *worst* look, never an average: an event that looked critical
+once looked critical, and averaging buries a real finding under its own
+follow-ups. Repetition raises confidence but is capped, because a systematic
+error repeats too.
+
+## The evidence graph
+
+Both proposals specify Neo4j. That is right at scale and the wrong first move
+here — a graph database is another service to deploy, secure, back up and
+air-gap, and the query this product actually needs is a *path*:
+
+```
+Alert → Event → Change → Scene → Source → Sensor
+```
+
+walked backwards from a conclusion to the pixels it came from. That is the
+question an analyst asks ("why am I being shown this?") and the one an auditor
+asks, and it is a bounded traversal over a few thousand nodes per area. So it
+is an in-process typed graph built from records that already exist, with the
+ontology as an enum rather than a schema in another system. When an estate
+outgrows it, that ontology is the migration target.
+
+The ontology has **no Person, Actor or Owner type**, and no relation expressing
+cause — the same boundary `domain.py` holds. Adding one would be a reviewable
+act rather than an oversight.
+
+## Maritime: correlation, not accusation
+
+A vessel detection with no matching AIS report is **uncorrelated**. It is not
+dark, evading, illicit or suspicious. The reasons a legitimate vessel appears
+this way are ordinary and numerous — Class B transponders are missed beyond
+~20 nautical miles, satellite AIS has gaps and latency, many fishing vessels
+are not required to carry AIS at all, and the detection may not even be a
+vessel, since wave facets and navigation buoys return bright on SAR.
+
+Every one of those produces the same signature as a deliberately silent ship.
+The imagery cannot separate them, so the system does not try: it reports the
+absence of correlation, states the search window, carries those explanations
+*with the finding*, and leaves the inference to an analyst who knows the sea
+area. "No AIS coverage" is kept distinct from "no match" — we could not look
+and we looked and found nothing are different facts.
 
 ## Projection, not prediction
 

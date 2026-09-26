@@ -409,6 +409,13 @@ def _need(body: dict, key: str) -> str:
     return value
 
 
+#: Routes reachable without a token but still governed by a deployment
+#: setting. Only registration is on this list. Signing in is not a way *in* --
+#: it is how someone who already has an account uses the product, and gating
+#: it alongside registration makes the whole application unreachable.
+GATED_BY_SIGNUP = frozenset({"/api/auth/signup"})
+
+
 @public_route("POST", "/api/auth/signup")
 def api_signup(accounts: Accounts, body: dict, **_) -> dict:
     """Create an organisation and its first administrator.
@@ -560,7 +567,8 @@ def api_field_at(store: Store, params: dict, **_) -> dict:
 
 
 def dispatch_public(accounts: Accounts, method: str, path: str,
-                    params: dict, body: dict, token: str) -> tuple[int, dict]:
+                    params: dict, body: dict, token: str,
+                    allow_signup: bool = False) -> tuple[int, dict]:
     """Route a request that has not been authenticated yet.
 
     Returns (0, {}) when nothing matches, which tells the caller to fall
@@ -574,6 +582,12 @@ def dispatch_public(accounts: Accounts, method: str, path: str,
         match = regex.match(path)
         if not match:
             continue
+        if path in GATED_BY_SIGNUP and not allow_signup:
+            return 403, {
+                "error": "self-service registration is disabled on this server",
+                "hint": "an administrator creates accounts with "
+                        "`terrashield register`, or starts the server with "
+                        "--allow-signup"}
         try:
             return 200, fn(accounts=accounts, body=body, params=params,
                            token=token, **match.groupdict())
@@ -586,6 +600,100 @@ def dispatch_public(accounts: Accounts, method: str, path: str,
             traceback.print_exc()
             return 500, {"error": "internal error"}
     return 0, {}
+
+
+# ---------------------------------------------------------------------------
+# Events and the evidence graph
+# ---------------------------------------------------------------------------
+
+@route("GET", "/api/sites/{aoi_id}/events")
+def api_events(store: Store, aoi_id: str, params: dict, **_) -> dict:
+    """Findings fused into episodes.
+
+    The number worth watching here is `reduction`: how much shorter the queue
+    is than the raw findings behind it. A construction site seen on eleven
+    passes is one event, and a queue that shows it eleven times is the
+    mechanism behind alert fatigue.
+    """
+    from .events import fuse, novelty, summarise                 # noqa: PLC0415
+
+    if store.get_aoi(aoi_id) is None:
+        raise ApiError(404, f"no monitored area {aoi_id}")
+    end = _date(params, "to", datetime.now(timezone.utc).date())
+    start = _date(params, "from", end - timedelta(days=180))
+    changes = store.list_changes(aoi_id, start=start, end=end, limit=2000)
+
+    events = fuse(changes)
+    payload = []
+    for event in events:
+        row = event.to_dict()
+        row["novelty"] = round(novelty(event, events), 3)
+        payload.append(row)
+    payload.sort(key=lambda r: (r["severity"] != "critical", -r["looks"]))
+    return {"aoi_id": aoi_id,
+            "period": {"from": start.isoformat(), "to": end.isoformat()},
+            "summary": summarise(events), "events": payload}
+
+
+@route("GET", "/api/sites/{aoi_id}/graph")
+def api_graph(store: Store, aoi_id: str, params: dict, **_) -> dict:
+    """The knowledge graph for one area, or a subgraph around one node."""
+    from .events import fuse                                     # noqa: PLC0415
+    from .graph import build                                     # noqa: PLC0415
+
+    aoi = store.get_aoi(aoi_id)
+    if aoi is None:
+        raise ApiError(404, f"no monitored area {aoi_id}")
+    end = _date(params, "to", datetime.now(timezone.utc).date())
+    start = _date(params, "from", end - timedelta(days=180))
+
+    changes = store.list_changes(aoi_id, start=start, end=end, limit=2000)
+    graph = build(aoi, changes=changes, events=fuse(changes),
+                  scenes=store.list_scenes(aoi_id, start, end),
+                  fields=store.list_fields(aoi_id),
+                  alerts=[a for a in store.list_alerts(aoi_id, limit=500)])
+
+    root = _one(params, "node", "")
+    if root:
+        if root not in graph.nodes:
+            raise ApiError(404, f"no node {root} in this area's graph")
+        try:
+            depth = max(1, min(4, int(_one(params, "depth", "2"))))
+        except ValueError as e:
+            raise ApiError(400, "depth must be a number") from e
+        return graph.subgraph(root, depth)
+    return {"aoi_id": aoi_id, "stats": graph.stats()}
+
+
+@route("GET", "/api/evidence-path/{node_id}")
+def api_evidence_path(store: Store, node_id: str, params: dict, **_) -> dict:
+    """Walk back from a conclusion to the pixels it rests on.
+
+    The question is "why am I being shown this?", and the answer has to end at
+    a scene and the source that delivered it.
+    """
+    from .events import fuse                                     # noqa: PLC0415
+    from .graph import build                                     # noqa: PLC0415
+
+    aoi_id = _one(params, "aoi_id", "")
+    if not aoi_id:
+        raise ApiError(400, "aoi_id is required",
+                       "the graph is built per monitored area")
+    aoi = store.get_aoi(aoi_id)
+    if aoi is None:
+        raise ApiError(404, f"no monitored area {aoi_id}")
+
+    end = datetime.now(timezone.utc).date()
+    start = end - timedelta(days=365)
+    changes = store.list_changes(aoi_id, start=start, end=end, limit=2000)
+    graph = build(aoi, changes=changes, events=fuse(changes),
+                  scenes=store.list_scenes(aoi_id, start, end),
+                  fields=store.list_fields(aoi_id),
+                  alerts=[a for a in store.list_alerts(aoi_id, limit=500)])
+    if node_id not in graph.nodes:
+        raise ApiError(404, f"no node {node_id} in this area's graph")
+    return {"root": node_id,
+            "path": [n.to_dict() for n in graph.evidence_path(node_id)]}
 
 
 # ---------------------------------------------------------------------------
@@ -671,7 +779,8 @@ def _webapp() -> bytes | None:
 
 
 def make_handler(store_factory: Callable[[str], Store],
-                 accounts_factory: Callable[[], Accounts] | None = None):
+                 accounts_factory: Callable[[], Accounts] | None = None,
+                 allow_signup: bool = False):
     class TerraShieldHandler(BaseHTTPRequestHandler):
         server_version = "TerraShield/0.1"
 
@@ -730,7 +839,8 @@ def make_handler(store_factory: Callable[[str], Store],
                 accounts = accounts_factory()
                 try:
                     status, payload = dispatch_public(
-                        accounts, method, url.path, params, body, token)
+                        accounts, method, url.path, params, body, token,
+                        allow_signup)
                 finally:
                     accounts.conn.close()
                 if status:
@@ -827,9 +937,10 @@ def serve(db_path: str, host: str = "127.0.0.1", port: int = 8787,
         return Store(db_path, org_id=account.org_id, actor=account.email,
                      role=account.role)
 
+    #: The accounts factory is always supplied: signing in has to work whether
+    #: or not registration is open, or nobody can use the product at all.
     server = ThreadingHTTPServer(
-        (host, port),
-        make_handler(factory, accounts_factory if allow_signup else None))
+        (host, port), make_handler(factory, accounts_factory, allow_signup))
     print(f"TerraShield API on http://{host}:{port}  (database {db_path})")
     try:
         server.serve_forever()
