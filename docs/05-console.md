@@ -79,7 +79,7 @@ library positions elements with style attributes.
 | Evidence | `/api/evidence/{id}`, `/api/evidence-path/{node}` | Artefacts with hashes, measurements, gaps, path to the sources |
 | Evidence graph | `/api/sites/{id}/graph?node&depth` | Force layout of the subgraph, evidence path highlighted |
 | Copilot | `POST /api/copilot` | Cited answers; declined questions are shown as declined |
-| Asset intelligence | `/api/changes?limit=5000`, `/api/sites/{id}`, `/api/fields/at` | Location report, portfolio screening from a CSV, event-footprint triage |
+| Asset intelligence | `/api/changes?limit=5000`, `/api/sites/{id}`, `/api/imagery`, `/api/sites/{id}/fields`, `/api/fields/at` | Location report with living record, inspection queue from a CSV, event footprint, hazard layers |
 | Maritime | `/api/objects`, `/api/sites/{id}/observations` | Vessel detections per pass at port sites |
 | Orbit (SDA) | none (client-side) | Ground tracks and overflight windows from pasted TLEs |
 | Watchlists, Rules, Reports | their routes | Configuration views; watchlists can be created |
@@ -95,34 +95,53 @@ them; the console only avoids offering what will be refused.
 ## Asset intelligence
 
 The monitoring record read from the point of view of a place someone owns,
-insures or is responsible for. Three tabs, all computed in the browser from
-TerraShield's own findings:
+insures or is responsible for: which assets changed, what they are exposed to,
+and which are worth sending someone to inspect. Four tabs, all computed in the
+browser from TerraShield's findings and the hazard layers the user loads:
 
-- **Location report.** A coordinate and a radius in; out come the monitored site
-  and named field it falls in, every finding within the radius with its distance,
-  severity, review state and evidence link, and an observed-change score. Prints
-  to PDF.
-- **Portfolio screening.** A CSV of assets (columns matched by name: `lon`/`lng`,
-  `lat`, optional `id`, `name`, `value`/`tiv`) is ranked by observed change
-  nearby, with the share of portfolio value near high or critical findings, and
-  exports back to CSV. The file never leaves the browser.
+- **Location report.** Search a site or field name, paste a coordinate
+  (`22.743, 69.703`, `22.743N 69.703E`, or degrees-minutes-seconds), or click
+  the map. The report gives the covering site and named field, a recommendation
+  (Inspect, Desk review, No action, Not observed) with its reasons, hazard
+  exposure per layer, the age of the last usable image, and a *living record*:
+  every finding near the asset, month by month, newest first. Prints to PDF.
+- **Portfolio & inspections.** A CSV of assets (columns matched by name: `lon`/
+  `lng`, `lat`, optional `id`, `name`, `value`/`tiv`) becomes an inspection queue,
+  ordered by recommendation, then priority, then value. Exports to CSV with the
+  reasons and the hazard result for every layer. The file never leaves the
+  browser.
 - **Event footprint.** Outline a flood extent, cyclone track or fire perimeter;
-  the findings and portfolio assets inside it are listed, by default limited to
-  damage and water types.
+  the findings and portfolio assets inside it are listed.
+- **Hazard layers.** Load GeoJSON: polygons read as zones by a class property
+  (flood zone, wildfire class, landslide susceptibility), or lines read as
+  distance (faults, flagged within 10 km). Each layer records its source.
+  Layers are kept in this browser only.
 
-Three rules hold across all three, because they are where this kind of product
-misleads:
+### How a recommendation is made
 
-1. **Unobserved is not unchanged.** An asset outside every monitored site has no
-   findings because nothing looked there, and is labelled "not monitored", ranked
-   below observed assets with the same score.
-2. **The score is observed change, not risk.** It sums severity × confidence ×
-   proximity (confirmed findings 1.5×, rejected ones excluded) and maps the sum to
-   0–100. The full method is printed under every score. There is no hazard model,
-   flood zone, valuation or loss estimate behind it.
-3. **Truncation is reported.** `/api/changes` now takes `limit` (default 500,
-   maximum 5000) and returns `truncated`. A screening run that hit the limit says
-   so, rather than reporting the rest of the estate as quiet.
+One point per flagged hazard layer, two for a high or critical change within
+the radius, and one each for an analyst confirmation, a change on the asset
+itself, a last usable image older than 45 days (or none in the window), and a
+value at least twice the portfolio median when anything else applies. Three or
+more points is **Inspect**; one or two is **Desk review**; none is **No action**.
+An asset outside every monitored site is **Not observed** regardless. The rule
+is a checklist a reviewer can read, not a model, and every reason is shown.
+
+### Rules that hold throughout
+
+1. **Unobserved is not unchanged.** No findings outside a monitored site means
+   nothing looked there.
+2. **No hazard data ships with TerraShield.** Exposure comes only from layers the
+   user loads, each with its stated source. The *synthetic demo layers* are
+   invented shapes over the demo estate; whenever one is loaded, every screen and
+   export says so (`synthetic_hazard_layers` column).
+3. **The score is observed change, not risk or price.** Recommendations order a
+   queue for people; they do not price, decline or settle anything.
+4. **Street addresses are not geocoded.** That needs an outbound service the
+   offline console does not call. Place search resolves coordinates and the names
+   of monitored sites and fields, and says so when an address finds nothing.
+5. **Truncation is reported.** `/api/changes` takes `limit` (default 500,
+   maximum 5000) and returns `truncated`.
 
 ## Integrating another system
 
