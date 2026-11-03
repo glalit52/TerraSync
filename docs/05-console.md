@@ -79,6 +79,7 @@ library positions elements with style attributes.
 | Evidence | `/api/evidence/{id}`, `/api/evidence-path/{node}` | Artefacts with hashes, measurements, gaps, path to the sources |
 | Evidence graph | `/api/sites/{id}/graph?node&depth` | Force layout of the subgraph, evidence path highlighted |
 | Copilot | `POST /api/copilot` | Cited answers; declined questions are shown as declined |
+| Asset intelligence | `/api/changes?limit=5000`, `/api/sites/{id}`, `/api/fields/at` | Location report, portfolio screening from a CSV, event-footprint triage |
 | Maritime | `/api/objects`, `/api/sites/{id}/observations` | Vessel detections per pass at port sites |
 | Orbit (SDA) | none (client-side) | Ground tracks and overflight windows from pasted TLEs |
 | Watchlists, Rules, Reports | their routes | Configuration views; watchlists can be created |
@@ -90,6 +91,38 @@ library positions elements with style attributes.
 Controls the role cannot use are disabled or replaced with a sentence saying so,
 using the permissions from `/api/me`. The server still enforces every one of
 them; the console only avoids offering what will be refused.
+
+## Asset intelligence
+
+The monitoring record read from the point of view of a place someone owns,
+insures or is responsible for. Three tabs, all computed in the browser from
+TerraShield's own findings:
+
+- **Location report.** A coordinate and a radius in; out come the monitored site
+  and named field it falls in, every finding within the radius with its distance,
+  severity, review state and evidence link, and an observed-change score. Prints
+  to PDF.
+- **Portfolio screening.** A CSV of assets (columns matched by name: `lon`/`lng`,
+  `lat`, optional `id`, `name`, `value`/`tiv`) is ranked by observed change
+  nearby, with the share of portfolio value near high or critical findings, and
+  exports back to CSV. The file never leaves the browser.
+- **Event footprint.** Outline a flood extent, cyclone track or fire perimeter;
+  the findings and portfolio assets inside it are listed, by default limited to
+  damage and water types.
+
+Three rules hold across all three, because they are where this kind of product
+misleads:
+
+1. **Unobserved is not unchanged.** An asset outside every monitored site has no
+   findings because nothing looked there, and is labelled "not monitored", ranked
+   below observed assets with the same score.
+2. **The score is observed change, not risk.** It sums severity × confidence ×
+   proximity (confirmed findings 1.5×, rejected ones excluded) and maps the sum to
+   0–100. The full method is printed under every score. There is no hazard model,
+   flood zone, valuation or loss estimate behind it.
+3. **Truncation is reported.** `/api/changes` now takes `limit` (default 500,
+   maximum 5000) and returns `truncated`. A screening run that hit the limit says
+   so, rather than reporting the rest of the estate as quiet.
 
 ## Integrating another system
 

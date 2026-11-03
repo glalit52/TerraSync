@@ -32,7 +32,7 @@ const ROUTES: RouteDoc[] = [
   { method: "POST", path: "/api/fields/{id}/retire", permission: "field.update", what: "Retire a field (idempotent)" },
   { method: "GET", path: "/api/fields/at", permission: "site.read", what: "Which field a coordinate falls in (?lon&lat)" },
   { method: "GET", path: "/api/imagery", permission: "imagery.read", what: "Scenes for a site, including rejected ones (?site)" },
-  { method: "GET", path: "/api/changes", permission: "site.read", what: "Change events (?site&from&to)", example: "/api/changes" },
+  { method: "GET", path: "/api/changes", permission: "site.read", what: "Change events (?site&from&to&limit≤5000), with a truncated flag", example: "/api/changes" },
   { method: "GET", path: "/api/objects", permission: "site.read", what: "Detections (?site&scene)" },
   { method: "GET", path: "/api/timeline", permission: "site.read", what: "Scenes, changes and anomaly scores on one axis (?site)" },
   { method: "GET", path: "/api/alerts", permission: "alert.read", what: "Ranked queue (?site&status&max_priority)", example: "/api/alerts?max_priority=2" },

@@ -181,8 +181,19 @@ def api_imagery(store: Store, params: dict, **_) -> dict:
 def api_changes(store: Store, params: dict, **_) -> dict:
     end = _date(params, "to", datetime.now(timezone.utc).date())
     start = _date(params, "from", end - timedelta(days=30))
-    rows = store.list_changes(_one(params, "site") or None, start=start, end=end)
-    return {"changes": [
+    try:
+        limit = max(1, min(5000, int(_one(params, "limit", "500"))))
+    except ValueError as e:
+        raise ApiError(400, "limit must be a number") from e
+    rows = store.list_changes(_one(params, "site") or None, start=start, end=end,
+                              limit=limit)
+    return {
+        #: Said rather than left to be inferred. A screening run over a
+        #: portfolio that silently saw only the first 500 changes reports the
+        #: rest of the estate as quiet.
+        "truncated": len(rows) >= limit,
+        "limit": limit,
+        "changes": [
         {"id": e.id, "aoi_id": e.aoi_id, "type": e.change_type.value,
          "detected_on": e.detected_at.date().isoformat(),
          "area_m2": e.area_m2, "confidence": e.confidence,

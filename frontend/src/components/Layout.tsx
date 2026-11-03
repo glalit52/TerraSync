@@ -3,6 +3,7 @@ import {
   Activity,
   Anchor,
   Bell,
+  Building2,
   BookOpen,
   Bot,
   CalendarRange,
@@ -46,6 +47,7 @@ export const NAV: NavItem[] = [
   { to: "/copilot", label: "Copilot", icon: <Bot />, group: "Operate", keywords: "ask question ai" },
   { to: "/sites", label: "Sites", icon: <MapPin />, group: "Intelligence", keywords: "aoi areas monitored" },
   { to: "/changes", label: "Change explorer", icon: <Activity />, group: "Intelligence", keywords: "change detection findings" },
+  { to: "/assets", label: "Asset intelligence", icon: <Building2 />, group: "Intelligence", keywords: "property portfolio insurance exposure footprint disaster location report" },
   { to: "/maritime", label: "Maritime", icon: <Anchor />, group: "Intelligence", keywords: "vessels ais ports ships" },
   { to: "/orbit", label: "Orbit (SDA)", icon: <Orbit />, group: "Intelligence", keywords: "space satellites tle overflight sda" },
   { to: "/graph", label: "Evidence graph", icon: <Waypoints />, group: "Intelligence", keywords: "knowledge graph provenance" },
@@ -174,11 +176,11 @@ export function Layout() {
     <div className="flex h-full flex-col">
       {/* Classification banner: set by the deployment. The demo estate is
           modelled imagery over civilian sites, and the banner says so. */}
-      <div className="flex h-6 shrink-0 items-center justify-center gap-2 bg-accent/90 text-[11px] font-bold uppercase tracking-[0.2em] text-black">
+      <div className="flex h-6 shrink-0 items-center print:hidden justify-center gap-2 bg-accent/90 text-[11px] font-bold uppercase tracking-[0.2em] text-black">
         <Shield className="h-3 w-3" /> {import.meta.env.VITE_CLASSIFICATION ?? "Unclassified // Demo estate — modelled imagery"}
       </div>
       <div className="flex min-h-0 flex-1">
-        <aside className={clsx("flex shrink-0 flex-col border-r border-line bg-panel transition-all", collapsed ? "w-14" : "w-56")}>
+        <aside className={clsx("flex shrink-0 print:hidden flex-col border-r border-line bg-panel transition-all", collapsed ? "w-14" : "w-56")}>
           <button className="flex h-14 items-center gap-2 border-b border-line px-3 text-left" onClick={() => setCollapsed((c) => !c)} title="Collapse sidebar">
             <svg viewBox="0 0 32 32" className="h-7 w-7 shrink-0">
               <path d="M16 2 4 7v8c0 7.5 5.1 13.4 12 15 6.9-1.6 12-7.5 12-15V7z" fill="none" stroke="rgb(var(--accent))" strokeWidth="2" />
@@ -236,7 +238,7 @@ export function Layout() {
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="flex h-14 shrink-0 items-center gap-3 border-b border-line bg-panel/60 px-4 backdrop-blur">
+          <header className="flex h-14 shrink-0 print:hidden items-center gap-3 border-b border-line bg-panel/60 px-4 backdrop-blur">
             <button
               className="flex w-full max-w-md items-center gap-2 rounded-md border border-line bg-bg px-3 py-1.5 text-sm text-dim hover:border-accent/50"
               onClick={() => setPalette(true)}

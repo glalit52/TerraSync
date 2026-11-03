@@ -132,3 +132,19 @@ def test_providers_are_readable_by_a_viewer(tmp_path):
         assert status == 200
     finally:
         s.close()
+
+
+def test_changes_report_their_limit_and_truncation(store):
+    s, _ = store
+    status, body = dispatch(s, "GET", "/api/changes", {"limit": ["99999"]})
+    assert status == 200
+    assert body["limit"] == 5000              # clamped, never unbounded
+    assert body["truncated"] is False
+    assert body["changes"] == []
+
+
+def test_a_non_numeric_limit_is_a_400(store):
+    s, _ = store
+    status, body = dispatch(s, "GET", "/api/changes", {"limit": ["lots"]})
+    assert status == 400
+    assert "limit" in body["error"]

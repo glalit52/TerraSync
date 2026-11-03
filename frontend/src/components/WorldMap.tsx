@@ -81,6 +81,7 @@ export function WorldMap({
   drawing,
   onDrawPoint,
   overlay,
+  labels = true,
 }: {
   polygons?: MapPolygon[];
   points?: MapPoint[];
@@ -93,6 +94,8 @@ export function WorldMap({
   drawing?: boolean;
   onDrawPoint?: (p: LonLat) => void;
   overlay?: ReactNode;
+  /** Screen-space labels on points. Off for dense layers; hover titles remain. */
+  labels?: boolean;
 }) {
   const pal = usePalette();
   const wrap = useRef<HTMLDivElement>(null);
@@ -287,7 +290,7 @@ export function WorldMap({
         </g>
         {/* Labels in screen space so they do not scale with zoom. */}
         {points
-          .filter((p) => p.label && p.tone !== "object")
+          .filter((p) => labels && p.label && p.tone !== "object")
           .map((p) => {
             const xy = projection([p.lon, p.lat]);
             if (!xy) return null;
