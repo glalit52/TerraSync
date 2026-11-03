@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Two themes as channel triplets so Tailwind's alpha modifiers work. Dark is
+   the default: operations rooms run dim, and the palette follows the
+   TerraShield brand (deep navy, signal lime). */
+:root {
+  --bg: 244 246 248;
+  --panel: 255 255 255;
+  --raised: 238 241 245;
+  --line: 214 220 228;
+  --ink: 17 24 39;
+  --dim: 90 102 120;
+  --accent: 77 124 15;
+  --crit: 190 18 60;
+  --high: 194 65 12;
+  --med: 161 98 7;
+  --low: 71 85 105;
+  --info: 3 105 161;
+}
+.dark {
+  --bg: 7 11 20;
+  --panel: 12 18 31;
+  --raised: 19 28 46;
+  --line: 33 45 68;
+  --ink: 226 232 240;
+  --dim: 138 151 173;
+  --accent: 163 230 53;
+  --crit: 251 113 133;
+  --high: 251 146 60;
+  --med: 250 204 21;
+  --low: 148 163 184;
+  --info: 56 189 248;
+}
+
+html, body, #root { height: 100%; }
+body {
+  @apply bg-bg text-ink font-sans antialiased;
+  font-feature-settings: "tnum" 1, "cv11" 1;
+}
+* { scrollbar-width: thin; scrollbar-color: rgb(var(--line)) transparent; }
+
+@layer components {
+  .card { @apply rounded-lg border border-line bg-panel; }
+  .card-h { @apply flex items-center justify-between gap-3 border-b border-line px-4 py-2.5; }
+  .card-t { @apply text-[11px] font-semibold uppercase tracking-[0.12em] text-dim; }
+  .btn { @apply inline-flex items-center gap-1.5 rounded-md border border-line bg-raised px-3 py-1.5 text-sm text-ink transition hover:border-accent/60 disabled:cursor-not-allowed disabled:opacity-40; }
+  .btn-primary { @apply border-accent/70 bg-accent/15 text-accent hover:bg-accent/25; }
+  .btn-ghost { @apply border-transparent bg-transparent hover:bg-raised; }
+  .input { @apply w-full rounded-md border border-line bg-bg px-3 py-1.5 text-sm text-ink placeholder:text-dim/70 focus:border-accent/70 focus:outline-none; }
+  .label { @apply mb-1 block text-xs font-medium text-dim; }
+  .chip { @apply inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[11px] font-medium leading-none; }
+  .tbl { @apply w-full text-left text-sm; }
+  .tbl th { @apply sticky top-0 z-10 border-b border-line bg-panel px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-dim; }
+  .tbl td { @apply border-b border-line/60 px-3 py-2 align-top; }
+  .tbl tr.row { @apply cursor-pointer hover:bg-raised/70; }
+  .mono { @apply font-mono text-[12px]; }
+  .kbd { @apply rounded border border-line bg-raised px-1 font-mono text-[10px] text-dim; }
+}
+
+.map-grid { background-image: radial-gradient(rgb(var(--line)) 1px, transparent 1px); background-size: 22px 22px; }
+@keyframes ping-soft { 0% { transform: scale(1); opacity: .8 } 100% { transform: scale(2.6); opacity: 0 } }
+.ping { animation: ping-soft 1.8s ease-out infinite; transform-box: fill-box; transform-origin: center; }

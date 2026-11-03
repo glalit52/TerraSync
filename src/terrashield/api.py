@@ -765,6 +765,89 @@ def api_projection(store: Store, aoi_id: str, params: dict, **_) -> dict:
     return result if isinstance(result, dict) else result.to_dict()
 
 
+@route("GET", "/api/sites/{aoi_id}/observations")
+def api_observations(store: Store, aoi_id: str, params: dict, **_) -> dict:
+    """The measured series behind pattern-of-life, grouped by metric.
+
+    The console charts these against the anomaly scores, because a score on its
+    own invites the question "a deviation from what?" and this is the answer.
+    """
+    if store.get_aoi(aoi_id) is None:
+        raise ApiError(404, f"no monitored area {aoi_id}")
+    end = _date(params, "to", datetime.now(timezone.utc).date())
+    start = _date(params, "from", end - timedelta(days=180))
+    metric = _one(params, "metric", "") or None
+    series: dict[str, list[dict]] = {}
+    for o in store.list_observations(aoi_id, metric=metric, start=start, end=end):
+        series.setdefault(o.metric, []).append(
+            {"date": o.when.isoformat(), "value": o.value,
+             "quality": o.quality, "scene_id": o.scene_id})
+    return {"aoi_id": aoi_id,
+            "period": {"from": start.isoformat(), "to": end.isoformat()},
+            "metrics": sorted(series), "series": series}
+
+
+@route("GET", "/api/providers")
+def api_providers(store: Store, **_) -> dict:
+    """Which imagery sources are configured. Names of missing variables only.
+
+    Never contacts a vendor and never returns a credential value: this is the
+    same report `terrashield providers` prints, for the console's data-sources
+    screen.
+    """
+    from . import providers as prov                          # noqa: PLC0415
+    from .rbac import require                                # noqa: PLC0415
+
+    require(store.role, "imagery.read", store.actor)
+    return prov.status()
+
+
+#: The analyst console: a static single-page build from `frontend/`. Served
+#: under /console so the original page at / keeps working unchanged while the
+#: console is adopted. Absent until `npm run build` has been run, and the
+#: server says so rather than serving a blank page.
+CONSOLE = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+
+_STATIC_TYPES = {
+    ".html": "text/html; charset=utf-8", ".js": "text/javascript",
+    ".css": "text/css", ".json": "application/json", ".svg": "image/svg+xml",
+    ".png": "image/png", ".ico": "image/x-icon", ".woff2": "font/woff2",
+    ".txt": "text/plain; charset=utf-8",
+}
+
+#: The console's policy is stricter than the original page's: the build emits
+#: no inline script, so 'unsafe-inline' is dropped from script-src. Styles keep
+#: it because the chart library positions elements with style attributes.
+CONSOLE_CSP = ("default-src 'self'; script-src 'self'; "
+               "style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; "
+               "connect-src 'self'; font-src 'self'; frame-ancestors 'none'; "
+               "base-uri 'none'; form-action 'self'")
+
+
+def console_file(path: str, root: Path | None = None) -> tuple[Path, str] | None:
+    """Map a /console URL path to a file inside the build, or None.
+
+    Unknown paths without an extension fall back to index.html, because the
+    console routes on the client. Anything that resolves outside the build
+    directory is refused, which is the whole of path-traversal defence here.
+    """
+    base = (root or CONSOLE).resolve()
+    if not (base / "index.html").is_file():
+        return None
+    rel = path[len("/console"):].lstrip("/")
+    candidate = (base / rel).resolve() if rel else base / "index.html"
+    if base not in candidate.parents and candidate != base / "index.html":
+        return None
+    if not candidate.is_file():
+        if Path(rel).suffix:
+            return None
+        candidate = base / "index.html"
+    ctype = _STATIC_TYPES.get(candidate.suffix)
+    if ctype is None:
+        return None
+    return candidate, ctype
+
+
 #: Where the web application lives, relative to the installed package. Read
 #: from disk on each request rather than cached, so editing the page during
 #: development does not need a restart; it is one file and the cost is a read.
@@ -831,6 +914,32 @@ def make_handler(store_factory: Callable[[str], Store],
                     "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'")
                 self.end_headers()
                 self.wfile.write(page)
+                return
+
+            if method == "GET" and (url.path == "/console"
+                                    or url.path.startswith("/console/")):
+                found = console_file(url.path)
+                if found is None:
+                    self._send(404, {
+                        "error": "console not built or file not found",
+                        "hint": "cd frontend && npm ci && npm run build"})
+                    return
+                file_path, ctype = found
+                blob = file_path.read_bytes()
+                self.send_response(200)
+                self.send_header("Content-Type", ctype)
+                self.send_header("Content-Length", str(len(blob)))
+                self.send_header("X-Content-Type-Options", "nosniff")
+                self.send_header("Referrer-Policy", "same-origin")
+                self.send_header("Content-Security-Policy", CONSOLE_CSP)
+                #: Hashed asset names never change content; index.html must
+                #: always be re-read so a deploy takes effect.
+                self.send_header(
+                    "Cache-Control",
+                    "public, max-age=31536000, immutable"
+                    if "/assets/" in url.path else "no-store")
+                self.end_headers()
+                self.wfile.write(blob)
                 return
 
             token = self._token()
