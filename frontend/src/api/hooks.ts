@@ -3,6 +3,15 @@ import { api } from "./client";
 import { usePeriod } from "../state/period";
 import type {
   AlertQueue,
+  LiveResponse,
+  LonLat,
+  Sensor,
+  TrackAlert,
+  TrackHistory,
+  TrackKind,
+  ReplayResponse,
+  Zone,
+  ZoneRule,
   Audit,
   Change,
   CopilotAnswer,
@@ -256,3 +265,72 @@ export const useCopilot = () =>
   useMutation({
     mutationFn: (question: string) => api<CopilotAnswer>("/api/copilot", { method: "POST", body: { question } }),
   });
+
+// --- Live tracking ---------------------------------------------------------
+
+export const useLive = (paused: boolean, windowS = 600) =>
+  useQuery({
+    queryKey: ["live", windowS],
+    queryFn: () => api<LiveResponse>("/api/tracks/live", { query: { window: windowS, trail: 40, since_alert: 0 } }),
+    // Two seconds matches a radar sweep. The live screen pauses polling during
+    // replay, so a scrubbed position is not overwritten by the present.
+    refetchInterval: paused ? false : 2000,
+    refetchIntervalInBackground: false,
+    staleTime: 0,
+  });
+
+export const useTrackAlerts = (status: ReviewStatus | "" = "pending") =>
+  useQuery({
+    queryKey: ["track-alerts", status],
+    queryFn: () => api<{ alerts: TrackAlert[] }>("/api/track-alerts", { query: { status: status || undefined } }),
+    select: (d) => d.alerts,
+    refetchInterval: 4000,
+  });
+
+export const useTrackHistory = (id: string | null) =>
+  useQuery({
+    queryKey: ["track-history", id],
+    queryFn: () => api<TrackHistory>(`/api/tracks/${encodeURIComponent(id!)}`),
+    enabled: !!id,
+    retry: false,
+  });
+
+export function useReviewTrackAlert() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, status, note }: { id: string; status: ReviewStatus; note: string }) =>
+      api(`/api/track-alerts/${encodeURIComponent(id)}/review`, { method: "POST", body: { status, note } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["track-alerts"] });
+      qc.invalidateQueries({ queryKey: ["live"] });
+    },
+  });
+}
+
+export function useCreateZone() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { name: string; rule: ZoneRule; geometry: LonLat[]; kinds: TrackKind[]; loiter_s: number }) =>
+      api<{ zone: Zone }>("/api/zones", { method: "POST", body }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["live"] }),
+  });
+}
+
+export function useRetireZone() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api(`/api/zones/${encodeURIComponent(id)}/retire`, { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["live"] }),
+  });
+}
+
+export function useRegisterSensor() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { name: string; kind: string; lon?: number; lat?: number; range_m?: number }) =>
+      api<{ sensor: Sensor }>("/api/sensors", { method: "POST", body }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["live"] }),
+  });
+}
+
+export const fetchReplay = (from: string, to: string) => api<ReplayResponse>("/api/tracks/replay", { query: { from, to } });

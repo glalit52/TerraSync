@@ -16,6 +16,7 @@ const Changes = lazy(() => import("./pages/Changes"));
 const EvidencePage = lazy(() => import("./pages/Evidence"));
 const GraphPage = lazy(() => import("./pages/Graph"));
 const Copilot = lazy(() => import("./pages/Copilot"));
+const LiveTracks = lazy(() => import("./pages/LiveTracks"));
 const AssetIntel = lazy(() => import("./pages/AssetIntel"));
 const Maritime = lazy(() => import("./pages/Maritime"));
 const OrbitPage = lazy(() => import("./pages/Orbit"));
@@ -45,6 +46,7 @@ export function App() {
           <Route path="evidence/:id" element={<EvidencePage />} />
           <Route path="graph" element={<GraphPage />} />
           <Route path="copilot" element={<Copilot />} />
+          <Route path="live" element={<LiveTracks />} />
           <Route path="assets" element={<AssetIntel />} />
           <Route path="maritime" element={<Maritime />} />
           <Route path="orbit" element={<OrbitPage />} />

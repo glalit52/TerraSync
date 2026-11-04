@@ -21,15 +21,21 @@ export interface MapPoint {
   id: string;
   lon: number;
   lat: number;
-  tone?: Severity | "site" | "object" | "sat";
+  tone?: Severity | "site" | "object" | "sat" | "person" | "vehicle" | "drone" | "unknown" | "sensor";
   label?: string;
   pulse?: boolean;
   size?: number;
+  /** Drawn translucent: a lost track, or a position that is no longer current. */
+  faded?: boolean;
 }
 export interface MapLine {
   id: string;
   coords: LonLat[];
-  tone?: "sat" | "accent";
+  tone?: "sat" | "accent" | Severity | "person" | "vehicle" | "drone" | "unknown";
+  /** Dashed by default (orbits, projections); solid for observed trails and fences. */
+  dashed?: boolean;
+  width?: number;
+  faded?: boolean;
 }
 
 const toneOf = (p: Palette, t: string): string =>
@@ -44,6 +50,13 @@ const toneOf = (p: Palette, t: string): string =>
     object: p.info,
     sat: p.info,
     accent: p.accent,
+    // Live track kinds. Kind, not threat: the colours say what a sensor
+    // classified, never what it means.
+    person: p.high,
+    vehicle: p.info,
+    drone: p.med,
+    unknown: p.dim,
+    sensor: p.ink,
   } as Record<string, string>)[t] ?? p.accent;
 
 let landCache: Promise<FeatureCollection<Geometry>> | null = null;
@@ -228,10 +241,12 @@ export function WorldMap({
               d={path({ type: "LineString", coordinates: l.coords } as GeoPermissibleObjects) ?? ""}
               fill="none"
               stroke={toneOf(pal, l.tone ?? "sat")}
-              strokeWidth={1.4}
-              strokeDasharray="4 3"
+              strokeWidth={l.width ?? 1.4}
+              strokeDasharray={l.dashed === false ? undefined : "4 3"}
+              strokeLinecap="round"
+              strokeLinejoin="round"
               vectorEffect="non-scaling-stroke"
-              opacity={0.85}
+              opacity={l.faded ? 0.35 : 0.85}
             />
           ))}
           {polygons.map((p) => {
@@ -278,7 +293,7 @@ export function WorldMap({
                   cy={xy[1]}
                   r={isSel ? rad * 1.5 : rad}
                   fill={c}
-                  fillOpacity={p.tone === "object" ? 0.75 : 0.9}
+                  fillOpacity={p.faded ? 0.3 : p.tone === "object" ? 0.75 : 0.9}
                   stroke={pal.bg}
                   strokeWidth={1}
                   vectorEffect="non-scaling-stroke"

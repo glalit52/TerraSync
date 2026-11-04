@@ -300,6 +300,115 @@ MIGRATIONS: list[tuple[int, str]] = [
     CREATE INDEX idx_fields_bbox ON fields(min_lon, min_lat, max_lon, max_lat);
     CREATE UNIQUE INDEX idx_fields_name ON fields(aoi_id, name);
     """),
+    (4, """
+    -- Live tracking, phase 1: tracks reported by ground sensors (radar, CoT
+    -- gateways), geofences, and the alerts they raise. Satellite findings
+    -- arrive in days; these arrive in seconds, and are kept apart because
+    -- their volume and retention are nothing alike.
+    --
+    -- A track is anonymous by construction: a sensor's identifier for
+    -- something moving, its kind (person, vehicle, drone, unknown) and its
+    -- positions. There is no column for who or what it belongs to, and no
+    -- affiliation -- CoT carries one, and it is dropped on intake.
+
+    CREATE TABLE sensors (
+        id            TEXT PRIMARY KEY,
+        org_id        TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        name          TEXT NOT NULL,
+        kind          TEXT NOT NULL,
+        lon REAL, lat REAL,
+        range_m       REAL NOT NULL DEFAULT 0,
+        simulated     INTEGER NOT NULL DEFAULT 0,
+        created_at    TEXT NOT NULL,
+        last_heard_at TEXT NOT NULL DEFAULT '',
+        reports       INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE INDEX idx_sensors_org ON sensors(org_id);
+
+    CREATE TABLE tracks (
+        id         TEXT PRIMARY KEY,
+        org_id     TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        sensor_id  TEXT NOT NULL REFERENCES sensors(id) ON DELETE CASCADE,
+        uid        TEXT NOT NULL,
+        kind       TEXT NOT NULL,
+        first_seen TEXT NOT NULL,
+        last_seen  TEXT NOT NULL,
+        lon REAL NOT NULL, lat REAL NOT NULL,
+        speed_mps  REAL,
+        heading_deg REAL,
+        points     INTEGER NOT NULL DEFAULT 0,
+        simulated  INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE UNIQUE INDEX idx_tracks_uid ON tracks(org_id, sensor_id, uid);
+    CREATE INDEX idx_tracks_seen ON tracks(org_id, last_seen);
+
+    CREATE TABLE track_points (
+        seq       INTEGER PRIMARY KEY AUTOINCREMENT,
+        org_id    TEXT NOT NULL,
+        track_id  TEXT NOT NULL REFERENCES tracks(id) ON DELETE CASCADE,
+        t         TEXT NOT NULL,
+        lon REAL NOT NULL, lat REAL NOT NULL,
+        speed_mps REAL,
+        heading_deg REAL
+    );
+    CREATE INDEX idx_points_track ON track_points(track_id, t);
+    CREATE INDEX idx_points_org_t ON track_points(org_id, t);
+
+    CREATE TABLE zones (
+        id            TEXT PRIMARY KEY,
+        org_id        TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        name          TEXT NOT NULL,
+        rule          TEXT NOT NULL,
+        geometry_json TEXT NOT NULL,
+        kinds_json    TEXT NOT NULL DEFAULT '[]',
+        loiter_s      INTEGER NOT NULL DEFAULT 0,
+        simulated     INTEGER NOT NULL DEFAULT 0,
+        active        INTEGER NOT NULL DEFAULT 1,
+        created_by    TEXT NOT NULL DEFAULT '',
+        created_at    TEXT NOT NULL
+    );
+    CREATE INDEX idx_zones_org ON zones(org_id, active);
+
+    -- Which tracks are inside which polygon zones right now. What makes a
+    -- no-entry alert fire once per entry rather than once per radar sweep,
+    -- and what a loiter rule measures from.
+    CREATE TABLE zone_presence (
+        org_id     TEXT NOT NULL,
+        zone_id    TEXT NOT NULL REFERENCES zones(id) ON DELETE CASCADE,
+        track_id   TEXT NOT NULL REFERENCES tracks(id) ON DELETE CASCADE,
+        entered_at TEXT NOT NULL,
+        -- Set when the track is first seen outside again. Re-entry within the
+        -- debounce window is the same presence: radar jitter at a zone edge
+        -- otherwise reads as a string of separate intrusions.
+        left_at    TEXT NOT NULL DEFAULT '',
+        alerted    INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (zone_id, track_id)
+    );
+
+    -- An alert keeps a copy of the trail that raised it, so the evidence
+    -- outlives the retention window that purges the raw points.
+    CREATE TABLE track_alerts (
+        seq         INTEGER PRIMARY KEY AUTOINCREMENT,
+        id          TEXT NOT NULL UNIQUE,
+        org_id      TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        zone_id     TEXT NOT NULL,
+        zone_name   TEXT NOT NULL,
+        track_id    TEXT NOT NULL,
+        sensor_id   TEXT NOT NULL,
+        rule        TEXT NOT NULL,
+        kind        TEXT NOT NULL,
+        at          TEXT NOT NULL,
+        lon REAL NOT NULL, lat REAL NOT NULL,
+        summary     TEXT NOT NULL,
+        trail_json  TEXT NOT NULL,
+        simulated   INTEGER NOT NULL DEFAULT 0,
+        status      TEXT NOT NULL DEFAULT 'pending',
+        reviewed_by TEXT NOT NULL DEFAULT '',
+        reviewed_at TEXT NOT NULL DEFAULT '',
+        note        TEXT NOT NULL DEFAULT ''
+    );
+    CREATE INDEX idx_track_alerts_org ON track_alerts(org_id, seq);
+    """),
 ]
 
 

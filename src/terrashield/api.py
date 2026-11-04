@@ -36,6 +36,7 @@ from .pipeline import health
 from .rbac import AccessDenied, TenantViolation
 from .store.repo import Store, StoreError
 from .store.schema import migrate
+from .tracking import Tracking, TrackingError, parse_cot, parse_json_report
 
 Handler = Callable[..., Any]
 _ROUTES: list[tuple[str, re.Pattern, Handler]] = []
@@ -402,6 +403,10 @@ def dispatch(store: Store, method: str, path: str, params: dict,
             return 403, {"error": str(e)}
         except StoreError as e:
             return 409, {"error": str(e)}
+        except TrackingError as e:
+            #: Reports and zones are refused with the reason, which is the
+            #: caller's to fix -- a sensor gateway reading a 500 would retry.
+            return 400, {"error": str(e)}
         except Exception as e:                       # noqa: BLE001
             return 500, {"error": f"{type(e).__name__}: {e}",
                          "trace": traceback.format_exc(limit=4)}
@@ -811,6 +816,119 @@ def api_providers(store: Store, **_) -> dict:
 
     require(store.role, "imagery.read", store.actor)
     return prov.status()
+
+
+# ---------------------------------------------------------------------------
+# Live tracking (phase 1): sensors, tracks, zones, alerts
+# ---------------------------------------------------------------------------
+
+def _flag(raw: Any) -> bool:
+    return raw is True or str(raw).lower() in ("1", "true", "yes")
+
+
+@route("GET", "/api/sensors")
+def api_sensors(store: Store, **_) -> dict:
+    return {"sensors": Tracking(store).sensors()}
+
+
+@route("POST", "/api/sensors")
+def api_register_sensor(store: Store, body: dict, **_) -> dict:
+    def num(k: str) -> float | None:
+        v = body.get(k)
+        return None if v in (None, "") else float(v)
+    return {"sensor": Tracking(store).register_sensor(
+        name=str(body.get("name", "")), kind=str(body.get("kind", "")),
+        lon=num("lon"), lat=num("lat"), range_m=num("range_m") or 0,
+        simulated=_flag(body.get("simulated")), sensor_id=str(body.get("id", "")))}
+
+
+@route("POST", "/api/tracks/ingest")
+def api_ingest(store: Store, body: dict, **_) -> dict:
+    """A batch of reports from one sensor: JSON objects, CoT events, or both.
+
+    {"sensor_id": "...", "reports": [{uid, kind, lon, lat, time, ...}],
+     "cot": ["<event ...>...</event>", ...]}
+
+    A malformed report refuses the batch and names the report, rather than
+    dropping it silently: a sensor whose every fix is being discarded looks,
+    on the map, exactly like a quiet sector.
+    """
+    sensor_id = str(body.get("sensor_id", ""))
+    if not sensor_id:
+        raise ApiError(400, "sensor_id is required")
+    reports = []
+    for i, r in enumerate(body.get("reports") or []):
+        try:
+            reports.append(parse_json_report(r))
+        except TrackingError as e:
+            raise ApiError(400, f"reports[{i}]: {e}") from e
+    for i, x in enumerate(body.get("cot") or []):
+        try:
+            reports.append(parse_cot(str(x)))
+        except TrackingError as e:
+            raise ApiError(400, f"cot[{i}]: {e}") from e
+    if not reports:
+        raise ApiError(400, "no reports in the batch", "send 'reports' (JSON) or 'cot' (XML strings)")
+    return Tracking(store).ingest(sensor_id, reports)
+
+
+@route("GET", "/api/tracks/live")
+def api_tracks_live(store: Store, params: dict, **_) -> dict:
+    try:
+        since = int(_one(params, "since_alert", "0"))
+        window = max(10, min(3600, int(_one(params, "window", "600"))))
+        trail = max(2, min(200, int(_one(params, "trail", "40"))))
+    except ValueError as e:
+        raise ApiError(400, "since_alert, window and trail must be numbers") from e
+    return Tracking(store).live(since_alert=since, window_s=window, trail=trail)
+
+
+@route("GET", "/api/tracks/replay")
+def api_tracks_replay(store: Store, params: dict, **_) -> dict:
+    def ts(key: str) -> datetime:
+        raw = _one(params, key)
+        try:
+            t = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        except ValueError as e:
+            raise ApiError(400, f"{key} must be an ISO timestamp") from e
+        return t if t.tzinfo else t.replace(tzinfo=timezone.utc)
+    return Tracking(store).replay(ts("from"), ts("to"))
+
+
+@route("GET", "/api/tracks/{track_id}")
+def api_track(store: Store, track_id: str, **_) -> dict:
+    return Tracking(store).history(track_id)
+
+
+@route("GET", "/api/zones")
+def api_zones(store: Store, **_) -> dict:
+    store._require("track.read")
+    return {"zones": [z.to_dict() for z in Tracking(store).zones()]}
+
+
+@route("POST", "/api/zones")
+def api_create_zone(store: Store, body: dict, **_) -> dict:
+    z = Tracking(store).put_zone(
+        name=str(body.get("name", "")), rule=str(body.get("rule", "")),
+        geometry=body.get("geometry") or [], kinds=body.get("kinds") or [],
+        loiter_s=int(body.get("loiter_s") or 0), simulated=_flag(body.get("simulated")))
+    return {"zone": z.to_dict()}
+
+
+@route("POST", "/api/zones/{zone_id}/retire")
+def api_retire_zone(store: Store, zone_id: str, **_) -> dict:
+    return {"retired": zone_id, "changed": Tracking(store).retire_zone(zone_id)}
+
+
+@route("GET", "/api/track-alerts")
+def api_track_alerts(store: Store, params: dict, **_) -> dict:
+    return {"alerts": Tracking(store).alerts(status=_one(params, "status"))}
+
+
+@route("POST", "/api/track-alerts/{alert_id}/review")
+def api_review_track_alert(store: Store, alert_id: str, body: dict, **_) -> dict:
+    return {"alert": Tracking(store).review_alert(
+        alert_id, str(body.get("status", "")), str(body.get("note", "")))}
 
 
 #: The analyst console: a static single-page build from `frontend/`. Served

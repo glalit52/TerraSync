@@ -403,3 +403,102 @@ export interface ProviderStatus {
     notes: string;
   }[];
 }
+
+// --- Live tracking (phase 1) ------------------------------------------------
+
+export type TrackKind = "person" | "vehicle" | "drone" | "unknown";
+export type ZoneRule = "line" | "no_entry" | "loiter";
+
+export interface Sensor {
+  id: string;
+  name: string;
+  kind: string;
+  lon: number | null;
+  lat: number | null;
+  range_m: number;
+  simulated: boolean;
+  reports: number;
+  last_heard_at: string | null;
+  status: "online" | "silent" | "never heard";
+}
+
+export interface LiveTrack {
+  id: string;
+  uid: string;
+  sensor_id: string;
+  kind: TrackKind;
+  lon: number;
+  lat: number;
+  speed_mps: number | null;
+  heading_deg: number | null;
+  first_seen: string;
+  last_seen: string;
+  points: number;
+  age_s: number;
+  state: "live" | "lost";
+  simulated: boolean;
+  trail: LonLat[];
+}
+
+export interface Zone {
+  id: string;
+  name: string;
+  rule: ZoneRule;
+  geometry: LonLat[];
+  kinds: TrackKind[];
+  loiter_s: number;
+  simulated: boolean;
+  active: boolean;
+}
+
+export interface TrackAlert {
+  seq: number;
+  id: string;
+  zone_id: string;
+  zone_name: string;
+  track_id: string;
+  sensor_id: string;
+  rule: ZoneRule;
+  kind: TrackKind;
+  at: string;
+  lon: number;
+  lat: number;
+  summary: string;
+  trail: [number, number, string][];
+  simulated: boolean;
+  status: ReviewStatus;
+  reviewed_by: string;
+  reviewed_at: string | null;
+  note: string;
+}
+
+export interface LiveResponse {
+  as_of: string;
+  window_s: number;
+  tracks: LiveTrack[];
+  zones: Zone[];
+  sensors: Sensor[];
+  alerts: TrackAlert[];
+  alert_cursor: number;
+  pending_alerts: number;
+  lost_after_s: number;
+  retention_hours: number;
+}
+
+export interface TrackHistory {
+  id: string;
+  uid: string;
+  sensor_id: string;
+  kind: TrackKind;
+  first_seen: string;
+  last_seen: string;
+  simulated: boolean;
+  points: { t: string; lon: number; lat: number; speed_mps: number | null; heading_deg: number | null }[];
+}
+
+export interface ReplayResponse {
+  from: string;
+  to: string;
+  truncated: boolean;
+  points: { track_id: string; t: string; lon: number; lat: number; kind: TrackKind; simulated: boolean }[];
+}

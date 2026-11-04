@@ -43,6 +43,7 @@ world are not connected. Both halves of that sentence matter.
 | Model registry — versions, evaluations, inference log | **Built** |
 | Learned detection models | **Not built** — the detector is classical, and is a baseline to beat |
 | SSO / MFA | **Not built** — password and session only |
+| Live tracking, phase 1 — sensor tracks, geofences, alerts | **Built** — tracks arrive formed; no fusion, no video |
 | Autonomous agents, OSINT, thermal, UAV ingest | **Not built** |
 
 Two things follow from that table and are easy to miss:
@@ -331,6 +332,8 @@ are hash-chained and verify.
 | `src/terrashield/evaluate.py` | Precision, recall, calibration — the measurement |
 | `dashboard/` | The console: map, queue, site pages, change viewer |
 | `frontend/` | The analyst console (React, served at `/console/`) — see docs/05-console.md |
+| `src/terrashield/tracking.py` | Live tracks from ground sensors, geofences and their alerts (phase 1) |
+| `src/terrashield/simulate_tracks.py` | A scripted, flagged-simulated ground radar for demos and tests |
 | `docs/` | The notes below |
 | `src/terrashield/accounts.py` | Passwords, sessions, sign-up |
 | `tests/` | Tests, stdlib only |
@@ -394,6 +397,7 @@ of them to a customer.
 3. [docs/03-measured-performance.md](docs/03-measured-performance.md) — the numbers, and how to reproduce them
 4. [docs/04-deploying-for-real.md](docs/04-deploying-for-real.md) — what changes when the imagery is real
 5. [docs/05-console.md](docs/05-console.md) — the analyst console, its screens, and integrating with it
+6. [docs/06-live-tracking.md](docs/06-live-tracking.md) — live tracks from ground sensors, geofences, the simulator
 
 ## Scope
 

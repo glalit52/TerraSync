@@ -381,6 +381,29 @@ def cmd_serve(args) -> int:
     return 0
 
 
+def cmd_simulate_tracks(args) -> int:
+    """Drive a running server with the simulated ground radar.
+
+    Everything it sends is flagged simulated, and the console marks it so.
+    """
+    import os
+
+    from . import simulate_tracks
+
+    token = args.token or os.environ.get("TERRASHIELD_TOKEN", "")
+    if not token:
+        print("a bearer token is needed: --token, or TERRASHIELD_TOKEN")
+        return 1
+    print(f"simulated radar -> {args.url} every {args.interval}s"
+          f"{f' for {args.duration}s' if args.duration else ' (Ctrl-C to stop)'}")
+    try:
+        simulate_tracks.run(args.url, token, interval_s=args.interval,
+                            duration_s=args.duration)
+    except KeyboardInterrupt:
+        pass
+    return 0
+
+
 def cmd_demo(args) -> int:
     """Build the whole demo estate from nothing. One command, for a first look.
 
@@ -519,6 +542,16 @@ def build_parser() -> argparse.ArgumentParser:
 
     q = sub.add_parser("verify", help="check the audit chain")
     q.set_defaults(fn=cmd_verify)
+
+    q = sub.add_parser(
+        "simulate-tracks",
+        help="feed a running server from a simulated ground radar (flagged simulated)")
+    q.add_argument("--url", default="http://127.0.0.1:8787")
+    q.add_argument("--token", default="",
+                   help="bearer token; defaults to TERRASHIELD_TOKEN")
+    q.add_argument("--interval", type=float, default=2.0, help="seconds between sweeps")
+    q.add_argument("--duration", type=float, default=0, help="seconds to run; 0 = forever")
+    q.set_defaults(fn=cmd_simulate_tracks)
 
     q = sub.add_parser("serve", help="run the HTTP API")
     q.add_argument("--host", default="127.0.0.1")

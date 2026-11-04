@@ -17,6 +17,7 @@ import {
   Moon,
   Orbit,
   Plug,
+  Radar,
   Search,
   Shield,
   ShieldCheck,
@@ -27,7 +28,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { useAlerts, useHealth } from "../api/hooks";
+import { useAlerts, useHealth, useTrackAlerts } from "../api/hooks";
 import { useAuth } from "../state/auth";
 import { PRESETS, presetWindow, usePeriod } from "../state/period";
 import { CommandPalette } from "./CommandPalette";
@@ -44,6 +45,7 @@ export const NAV: NavItem[] = [
   { to: "/", label: "Command", icon: <LayoutDashboard />, group: "Operate", keywords: "overview home dashboard" },
   { to: "/map", label: "Global map", icon: <Globe2 />, group: "Operate", keywords: "map geo layers" },
   { to: "/alerts", label: "Alert queue", icon: <Bell />, group: "Operate", keywords: "triage review queue" },
+  { to: "/live", label: "Live tracks", icon: <Radar />, group: "Operate", keywords: "radar sensors tracks geofence intrusion border live" },
   { to: "/copilot", label: "Copilot", icon: <Bot />, group: "Operate", keywords: "ask question ai" },
   { to: "/sites", label: "Sites", icon: <MapPin />, group: "Intelligence", keywords: "aoi areas monitored" },
   { to: "/changes", label: "Change explorer", icon: <Activity />, group: "Intelligence", keywords: "change detection findings" },
@@ -148,6 +150,7 @@ export function Layout() {
   const [collapsed, setCollapsed] = useState(false);
   const health = useHealth();
   const pending = useAlerts({ status: "pending", maxPriority: 2 });
+  const trackAlerts = useTrackAlerts("pending");
   const nav = useNavigate();
 
   useEffect(() => {
@@ -216,6 +219,9 @@ export function Layout() {
                     {!collapsed && <span className="flex-1 truncate">{n.label}</span>}
                     {!collapsed && n.to === "/alerts" && p12 > 0 && (
                       <span className="rounded bg-crit/20 px-1.5 font-mono text-[10px] text-crit">{p12}</span>
+                    )}
+                    {!collapsed && n.to === "/live" && (trackAlerts.data?.length ?? 0) > 0 && (
+                      <span className="rounded bg-crit/20 px-1.5 font-mono text-[10px] text-crit">{trackAlerts.data!.length}</span>
                     )}
                   </NavLink>
                 ))}

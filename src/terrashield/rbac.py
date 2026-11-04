@@ -33,6 +33,7 @@ PERMISSIONS: dict[str, Role] = {
     "imagery.read": Role.VIEWER,
     "report.read": Role.VIEWER,
     "copilot.ask": Role.VIEWER,
+    "track.read": Role.VIEWER,          # live tracks, zones, sensor status
 
     "aoi.create": Role.ANALYST,
     "aoi.update": Role.ANALYST,
@@ -43,6 +44,9 @@ PERMISSIONS: dict[str, Role] = {
     "finding.review": Role.ANALYST,
     "watchlist.manage": Role.ANALYST,
     "imagery.task": Role.ANALYST,      # spends money per square kilometre
+    "track.ingest": Role.ANALYST,      # sensor gateways post as a service account
+    "zone.manage": Role.ANALYST,
+    "sensor.manage": Role.ANALYST,
 
     "finding.escalate": Role.SUPERVISOR,
     "report.publish": Role.SUPERVISOR,

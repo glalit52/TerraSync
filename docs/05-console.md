@@ -78,6 +78,7 @@ library positions elements with style attributes.
 | Change explorer | `/api/changes`, `/api/imagery` | Filters, before/after scene metadata, change mask in place, review |
 | Evidence | `/api/evidence/{id}`, `/api/evidence-path/{node}` | Artefacts with hashes, measurements, gaps, path to the sources |
 | Evidence graph | `/api/sites/{id}/graph?node&depth` | Force layout of the subgraph, evidence path highlighted |
+| Live tracks | `/api/tracks/live`, `/api/track-alerts`, `/api/zones`, `/api/tracks/replay` | Ground-sensor tracks, geofence alerts, zone drawing, replay — see docs/06-live-tracking.md |
 | Copilot | `POST /api/copilot` | Cited answers; declined questions are shown as declined |
 | Asset intelligence | `/api/changes?limit=5000`, `/api/sites/{id}`, `/api/imagery`, `/api/sites/{id}/fields`, `/api/fields/at` | Location report with living record, inspection queue from a CSV, event footprint, hazard layers |
 | Maritime | `/api/objects`, `/api/sites/{id}/observations` | Vessel detections per pass at port sites |
