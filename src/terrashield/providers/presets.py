@@ -47,6 +47,20 @@ class CollectionSpec:
     #: brightness: doing that is what reported a new solar block as eleven
     #: hectares of inundation on a desert energy site.
     quality_asset: tuple[str, ...] = ()
+    #: How the quality asset encodes its classes: "scl" (Sentinel-2 scene
+    #: classification), "landsat_qa" (QA_PIXEL bits), or "" for none.
+    quality_kind: str = ""
+    #: Stored integer -> physical value, used only when the item's own
+    #: `raster:bands` does not say (it should, and it wins when it does).
+    value_scale: float = 1.0
+    value_offset: float = 0.0
+    #: "reflectance" for optical; "linear_power" or "db" for SAR backscatter.
+    value_kind: str = "reflectance"
+    #: Whether this build can turn the collection into analysis pixels. A
+    #: collection that cannot is left out of default searches, so the pipeline
+    #: never picks a scene it will fail to read -- and the reason is kept.
+    pixels_readable: bool = True
+    unreadable_reason: str = ""
 
 
 @dataclass(frozen=True)
@@ -63,6 +77,8 @@ class ProviderPreset:
     notes: str = ""
     #: Some catalogues want a vendor-specific parameter on every search.
     extra_search: dict = field(default_factory=dict)
+    #: How asset URLs must be transformed before they can be read, if at all.
+    signing: str = ""
 
     def for_constellation(self, c: Constellation) -> CollectionSpec | None:
         for spec in self.collections:
@@ -92,12 +108,21 @@ EARTH_SEARCH = ProviderPreset(
     collections=(
         CollectionSpec("sentinel-2-l2a", Constellation.SENTINEL_2, Sensor.OPTICAL,
                        10.0, visible_assets=("red", "B04"),
-                       quality_asset=("scl", "SCL")),
+                       quality_asset=("scl", "SCL"), quality_kind="scl",
+                       value_scale=1e-4),
         CollectionSpec("sentinel-1-grd", Constellation.SENTINEL_1, Sensor.SAR,
-                       10.0, visible_assets=("vv", "VV")),
+                       10.0, visible_assets=("vv", "VV"),
+                       pixels_readable=False,
+                       unreadable_reason=(
+                           "GRD is neither map-projected nor radiometrically "
+                           "calibrated, and is held in a requester-pays bucket. "
+                           "Use planetary-computer, whose Sentinel-1 RTC is "
+                           "analysis-ready")),
         CollectionSpec("landsat-c2-l2", Constellation.LANDSAT_9, Sensor.OPTICAL,
                        30.0, visible_assets=("red", "SR_B4"),
-                       quality_asset=("qa_pixel", "QA_PIXEL")),
+                       quality_asset=("qa_pixel", "QA_PIXEL"),
+                       quality_kind="landsat_qa",
+                       value_scale=2.75e-5, value_offset=-0.2),
     ),
 )
 
@@ -108,18 +133,24 @@ PLANETARY_COMPUTER = ProviderPreset(
     auth=ANONYMOUS,
     free=True,
     needs_account=False,
-    notes=("Search is open. Asset URLs are time-limited and must be signed "
-           "through the /sas endpoint before the pixels can be read, which is "
-           "why this is listed as search-ready rather than fetch-ready."),
+    notes=("Search is open. Asset URLs are time-limited and are signed "
+           "through the /sas endpoint before reading, automatically. The free "
+           "source of analysis-ready Sentinel-1 (radiometrically "
+           "terrain-corrected), which SAR change detection needs."),
+    signing="planetary-computer",
     collections=(
         CollectionSpec("sentinel-2-l2a", Constellation.SENTINEL_2, Sensor.OPTICAL,
                        10.0, visible_assets=("B04", "red"),
-                       quality_asset=("SCL", "scl")),
-        CollectionSpec("sentinel-1-grd", Constellation.SENTINEL_1, Sensor.SAR,
-                       10.0, visible_assets=("vv", "VV")),
+                       quality_asset=("SCL", "scl"), quality_kind="scl",
+                       value_scale=1e-4),
+        CollectionSpec("sentinel-1-rtc", Constellation.SENTINEL_1, Sensor.SAR,
+                       10.0, visible_assets=("vv", "VV"),
+                       value_kind="linear_power"),
         CollectionSpec("landsat-c2-l2", Constellation.LANDSAT_9, Sensor.OPTICAL,
                        30.0, visible_assets=("red", "SR_B4"),
-                       quality_asset=("qa_pixel", "QA_PIXEL")),
+                       quality_asset=("qa_pixel", "QA_PIXEL"),
+                       quality_kind="landsat_qa",
+                       value_scale=2.75e-5, value_offset=-0.2),
     ),
 )
 
@@ -142,9 +173,16 @@ CDSE = ProviderPreset(
            "completeness or latency matters, because it is the source."),
     collections=(
         CollectionSpec("SENTINEL-2", Constellation.SENTINEL_2, Sensor.OPTICAL,
-                       10.0, visible_assets=("B04",), quality_asset=("SCL",)),
+                       10.0, visible_assets=("B04",), quality_asset=("SCL",),
+                       quality_kind="scl", value_scale=1e-4,
+                       pixels_readable=False,
+                       unreadable_reason=(
+                           "CDSE serves JPEG2000 inside SAFE archives from its "
+                           "own S3 endpoint rather than COGs; search works, but "
+                           "reading needs an S3 reader that is not built")),
         CollectionSpec("SENTINEL-1", Constellation.SENTINEL_1, Sensor.SAR,
-                       10.0, visible_assets=("VV", "vv")),
+                       10.0, visible_assets=("VV", "vv"), pixels_readable=False,
+                       unreadable_reason="GRD in SAFE archives; not analysis-ready"),
     ),
 )
 
@@ -161,9 +199,11 @@ SENTINEL_HUB = ProviderPreset(
            "rather than raw scenes."),
     collections=(
         CollectionSpec("sentinel-2-l2a", Constellation.SENTINEL_2, Sensor.OPTICAL,
-                       10.0, visible_assets=("B04",), quality_asset=("SCL",)),
+                       10.0, visible_assets=("B04",), quality_asset=("SCL",),
+                       quality_kind="scl", value_scale=1e-4),
         CollectionSpec("sentinel-1-grd", Constellation.SENTINEL_1, Sensor.SAR,
-                       10.0, visible_assets=("VV",)),
+                       10.0, visible_assets=("VV",), pixels_readable=False,
+                       unreadable_reason="GRD is not map-projected or calibrated"),
     ),
 )
 
