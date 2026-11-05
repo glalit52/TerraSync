@@ -37,5 +37,7 @@ Disallow: /
 ROBOTS
 
 echo "public/ assembled:"
-find public -type f | sort | sed 's/^/  /' | head -20
+# sed prints the first 20 and keeps reading. `head` would exit early, and
+# under pipefail the writer's broken pipe fails the whole build at random.
+find public -type f | sort | sed -n '1,20s/^/  /p'
 echo "  ... $(find public -type f | wc -l) files total"
