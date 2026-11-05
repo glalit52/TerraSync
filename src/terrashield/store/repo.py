@@ -136,9 +136,15 @@ class Store:
 
     def put_org(self, org: Organization) -> None:
         with self.conn:
+            #: An upsert, never INSERT OR REPLACE. REPLACE deletes the old row
+            #: first, and with foreign keys on that delete cascades: re-running
+            #: `terrashield init` on a live database would erase every site,
+            #: finding and track the organisation owns.
             self.conn.execute(
-                "INSERT OR REPLACE INTO organizations "
-                "(id, name, country, classification, created_at) VALUES (?,?,?,?,?)",
+                "INSERT INTO organizations "
+                "(id, name, country, classification, created_at) VALUES (?,?,?,?,?) "
+                "ON CONFLICT(id) DO UPDATE SET name = excluded.name, "
+                "country = excluded.country, classification = excluded.classification",
                 (org.id, org.name, org.country, org.classification,
                  _iso(org.created_at)))
 

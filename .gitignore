@@ -10,4 +10,4 @@ __pycache__/
 *.db-shm
 
 # Assembled by scripts/build_static.sh at deploy time.
-public/
+/public/

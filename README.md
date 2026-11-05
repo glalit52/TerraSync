@@ -43,6 +43,7 @@ world are not connected. Both halves of that sentence matter.
 | Model registry — versions, evaluations, inference log | **Built** |
 | Learned detection models | **Not built** — the detector is classical, and is a baseline to beat |
 | SSO / MFA | **Not built** — password and session only |
+| Live tracking, phase 1 — sensor tracks, geofences, alerts | **Built** — tracks arrive formed; no fusion, no video |
 | Autonomous agents, OSINT, thermal, UAV ingest | **Not built** |
 
 Two things follow from that table and are easy to miss:
@@ -78,6 +79,22 @@ terrashield --db terrashield.db register --org "Your Org" --email you@example.co
 
 terrashield --db terrashield.db serve      # then open http://127.0.0.1:8787
 ```
+
+### The analyst console
+
+`frontend/` is a fuller console — command overview, map, alert triage with
+keyboard review, site pages, change and evidence viewers, evidence graph,
+copilot, maritime, orbit overflight windows, and integration docs. It builds to
+static files that the same server serves at `/console/`:
+
+```bash
+cd frontend && npm ci && npm run build      # once, on a machine with npm
+terrashield --db terrashield.db serve       # then open http://127.0.0.1:8787/console/
+```
+
+[docs/05-console.md](docs/05-console.md) covers development with hot reload,
+every screen and the route it reads, integrating another system, and what the
+console does not do yet.
 
 The web application is served by the same process as the API: one origin, no
 CORS to misconfigure, and the whole product is one artefact to install. It is
@@ -337,6 +354,9 @@ are hash-chained and verify.
 | `src/terrashield/api.py` | The endpoints in PRD section 40 |
 | `src/terrashield/evaluate.py` | Precision, recall, calibration — the measurement |
 | `dashboard/` | The console: map, queue, site pages, change viewer |
+| `frontend/` | The analyst console (React, served at `/console/`) — see docs/05-console.md |
+| `src/terrashield/tracking.py` | Live tracks from ground sensors, geofences and their alerts (phase 1) |
+| `src/terrashield/simulate_tracks.py` | A scripted, flagged-simulated ground radar for demos and tests |
 | `docs/` | The notes below |
 | `src/terrashield/accounts.py` | Passwords, sessions, sign-up |
 | `tests/` | Tests, stdlib only |
@@ -399,6 +419,8 @@ of them to a customer.
 2. [docs/02-responsible-use.md](docs/02-responsible-use.md) — the dual-use boundary, enforced in code
 3. [docs/03-measured-performance.md](docs/03-measured-performance.md) — the numbers, and how to reproduce them
 4. [docs/04-deploying-for-real.md](docs/04-deploying-for-real.md) — what changes when the imagery is real
+5. [docs/05-console.md](docs/05-console.md) — the analyst console, its screens, and integrating with it
+6. [docs/06-live-tracking.md](docs/06-live-tracking.md) — live tracks from ground sensors, geofences, the simulator
 
 ## Scope
 
