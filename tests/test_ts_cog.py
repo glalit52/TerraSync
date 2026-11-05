@@ -193,7 +193,7 @@ def test_landsat_qa_bits_are_decoded(tmp_path):
         (*cloudy, 300, (1 << 3) | (1 << 6)), (*wet, 300, (1 << 7) | (1 << 6))])
     item = item_with(red, item_id="LC09_TEST", scale=2.75e-5, offset=-0.2)
     item["assets"] = {"red": item["assets"]["red"], "qa_pixel": {"href": qa}}
-    provider, _ = make("earth-search", ok({"features": [item]}))
+    provider, _ = make("planetary-computer", ok({"features": [item]}))
     scene = provider.search(AOI, date(2026, 4, 1), date(2026, 4, 30),
                             (Constellation.LANDSAT_9,))[0]
     r = provider.fetch(AOI, scene, gsd_m=30.0)
@@ -244,11 +244,18 @@ def test_sentinel1_grd_is_refused_with_the_alternative_named():
 
 
 def test_default_searches_skip_collections_that_cannot_be_read():
-    provider, transport = make("earth-search", ok({"features": []}),
-                               ok({"features": []}))
+    """Earth Search's S1 GRD and requester-pays Landsat are left out; a live
+    run picked a Landsat day before this and could not read it."""
+    provider, transport = make("earth-search", ok({"features": []}))
     provider.search(AOI, date(2026, 4, 1), date(2026, 4, 30))
     asked = [c["body"]["collections"][0] for c in transport.calls]
-    assert asked == ["sentinel-2-l2a", "landsat-c2-l2"]
+    assert asked == ["sentinel-2-l2a"]
+
+    pc, transport = make("planetary-computer", ok({"features": []}),
+                         ok({"features": []}), ok({"features": []}))
+    pc.search(AOI, date(2026, 4, 1), date(2026, 4, 30))
+    asked = [c["body"]["collections"][0] for c in transport.calls]
+    assert asked == ["sentinel-2-l2a", "sentinel-1-rtc", "landsat-c2-l2"]
 
 
 def test_a_grid_too_large_for_the_engines_is_refused(tmp_path):
@@ -342,8 +349,9 @@ def test_the_pipeline_runs_a_day_on_geotiffs_and_finds_a_new_structure(tmp_path)
                       target_value=6000)
     items = [item_with(before, item_id="S2_BEFORE", when="2026-04-01T05:42:11Z"),
              item_with(after, item_id="S2_AFTER", when="2026-04-06T05:42:11Z")]
-    #: The default search asks every readable collection: Sentinel-2, Landsat.
-    provider, _ = make("earth-search", ok({"features": items}), ok({"features": []}))
+    #: The default search asks every readable collection: on Earth Search,
+    #: Sentinel-2 alone.
+    provider, _ = make("earth-search", ok({"features": items}))
 
     store = Store(str(tmp_path / "ts.db"), org_id=AOI.org_id, actor="test",
                   role=Role.ADMIN)

@@ -122,7 +122,13 @@ EARTH_SEARCH = ProviderPreset(
                        30.0, visible_assets=("red", "SR_B4"),
                        quality_asset=("qa_pixel", "QA_PIXEL"),
                        quality_kind="landsat_qa",
-                       value_scale=2.75e-5, value_offset=-0.2),
+                       value_scale=2.75e-5, value_offset=-0.2,
+                       pixels_readable=False,
+                       unreadable_reason=(
+                           "Earth Search publishes Landsat only from the "
+                           "requester-pays usgs-landsat bucket, which bills "
+                           "the reader per request. Use planetary-computer, "
+                           "whose Landsat is readable with a free token")),
     ),
 )
 

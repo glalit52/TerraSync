@@ -35,7 +35,7 @@ world are not connected. Both halves of that sentence matter.
 | Console (static report page) | **Built** — committed with its dataset |
 | Sensing limits — what each platform can resolve | **Built** |
 | Projection of a measured trend | **Built** — refused where the data cannot support one |
-| Imagery providers — 7 vendors, selected by one variable | **Built** — catalogue search; pixel reads (`imagery` extra) for Sentinel-2 and Landsat on Earth Search and Planetary Computer, and Sentinel-1 RTC on Planetary Computer |
+| Imagery providers — 7 vendors, selected by one variable | **Built** — catalogue search; pixel reads (`imagery` extra) for Sentinel-2 on Earth Search, and Sentinel-2, Landsat and Sentinel-1 RTC on Planetary Computer |
 | Event fusion — findings grouped into episodes | **Built** — reports its own noise reduction |
 | Knowledge graph and evidence path | **Built** — in-process, no graph database to deploy |
 | AIS correlation for maritime | **Built** — correlation only, never an accusation |
@@ -276,10 +276,16 @@ brightness. Cells a scene does not cover are filled neutrally and marked
 obscured, and a scene covering under half the AOI is dropped from the search,
 so the edge of a satellite swath is never reported as change. What is refused,
 with the reason: Sentinel-1 GRD (not map-projected or calibrated; use
-`planetary-computer`, whose RTC product is), CDSE (JPEG2000 in SAFE archives),
-requester-pays S3 assets, and grids too large for the pure-Python engines.
-Verified against real Sentinel-2 L2A tiles over Mundra: 400 x 320 cells at
-10 m in one to two seconds per scene.
+`planetary-computer`, whose RTC product is), Landsat on Earth Search
+(requester-pays; Planetary Computer serves it free), CDSE (JPEG2000 in SAFE
+archives), and grids too large for the pure-Python engines. Collections that
+cannot be read are left out of default searches, so the pipeline never picks a
+scene it would fail on.
+Verified against real Sentinel-2 L2A: 400 x 320 cells at 10 m over Mundra in
+one to two seconds per scene, and a ten-day monitoring cycle on Earth Search at
+Mundra and Bhadla that detected objects and raised changes and alerts from real
+pixels. Those findings are uncalibrated: the thresholds are still the ones tuned
+on the synthetic estate.
 
 ## What it does
 
