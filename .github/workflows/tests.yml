@@ -6,6 +6,19 @@ on:
   pull_request:
 
 jobs:
+  # Reading real pixels needs the optional imagery extra (rasterio). The core
+  # `test` job below stays dependency-free on purpose, so these tests skip there and
+  # run here, against GeoTIFFs they write themselves -- no network.
+  imagery:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install ".[imagery]" pytest
+      - run: python -m pytest -q tests/test_ts_cog.py tests/test_ts_providers.py
+
   test:
     runs-on: ubuntu-latest
     steps:
